@@ -79,6 +79,54 @@ export const PATIENTS = [
   },
 ]
 
+// Patient encounter history for the chart timeline and visit context.
+export const ENCOUNTERS = {
+  p1: [
+    { id: 'enc-p1-2', type: 'Inpatient', status: 'in-progress', date: '24 Sep 2026', reason: 'Persistent abdominal pain', attending: 'Dr. Faisal S.', location: 'Internal Medicine · Bed 4B' },
+    { id: 'enc-p1-1', type: 'Outpatient', status: 'completed', date: '12 Jan 2025', reason: 'Follow-up consultation', attending: 'Dr. Faisal S.', location: 'Internal Medicine Clinic' },
+  ],
+  p2: [
+    { id: 'enc-p2-2', type: 'Inpatient', status: 'discharge-pending', date: '26 Sep 2026', reason: 'Exertional chest pain', attending: 'Dr. N. Fatima', location: 'Cardiology · Bed 1A' },
+    { id: 'enc-p2-1', type: 'Outpatient', status: 'completed', date: '08 Jun 2025', reason: 'Cardiology review', attending: 'Dr. N. Fatima', location: 'Cardiology Clinic' },
+  ],
+  p3: [
+    { id: 'enc-p3-1', type: 'Outpatient', status: 'completed', date: '30 Sep 2026', reason: 'GI referral follow-up', attending: 'Dr. K. Farooq', location: 'Outpatient' },
+  ],
+  p4: [
+    { id: 'enc-p4-2', type: 'Inpatient · ICU', status: 'in-progress', date: '25 Sep 2026', reason: 'Post-operative monitoring', attending: 'Dr. N. Fatima', location: 'ICU · Bed 2' },
+    { id: 'enc-p4-1', type: 'Inpatient', status: 'completed', date: '18 Jan 2024', reason: 'Surgical admission', attending: 'Dr. N. Fatima', location: 'Surgery Ward' },
+  ],
+}
+
+// Structured problem list; entries are documented chart context, not generated diagnoses.
+export const PATIENT_PROBLEMS = {
+  p1: [
+    { id: 'prob-p1-1', name: 'Persistent abdominal pain', status: 'active', recorded: '25 Sep 2026', source: 'Intake form', note: 'Documented reason for visit; clinician assessment required.' },
+  ],
+  p2: [
+    { id: 'prob-p2-1', name: 'Stable angina · NYHA class II', status: 'active', recorded: '26 Sep 2026', source: 'Cardiology consult note', note: 'Extracted diagnosis; verify against the signed source record.' },
+  ],
+  p3: [
+    { id: 'prob-p3-1', name: 'Abdominal pain', status: 'monitoring', recorded: '30 Sep 2026', source: 'Referral follow-up', note: 'Follow-up with gastroenterology was recommended.' },
+  ],
+  p4: [
+    { id: 'prob-p4-1', name: 'Post-operative monitoring', status: 'active', recorded: '27 Sep 2026', source: 'ICU progress note', note: 'Documented post-operative status; see source note for context.' },
+  ],
+}
+
+// Structured allergy records retain verification state and source instead of relying on a string list.
+export const ALLERGY_RECORDS = {
+  p1: [
+    { id: 'allergy-p1-1', substance: 'Penicillin', reaction: 'Not documented', severity: 'Unknown', status: 'active', verification: 'Needs verification', source: 'Intake form' },
+  ],
+  p2: [{ id: 'allergy-p2-none', substance: 'No known allergies reported', reaction: '—', severity: '—', status: 'none-reported', verification: 'Not confirmed', source: 'Patient chart' }],
+  p3: [
+    { id: 'allergy-p3-1', substance: 'Sulfa drugs', reaction: 'Not documented', severity: 'Unknown', status: 'active', verification: 'Unverified', source: 'Patient chart' },
+    { id: 'allergy-p3-2', substance: 'Latex', reaction: 'Not documented', severity: 'Unknown', status: 'active', verification: 'Unverified', source: 'Patient chart' },
+  ],
+  p4: [{ id: 'allergy-p4-none', substance: 'No known allergies reported', reaction: '—', severity: '—', status: 'none-reported', verification: 'Not confirmed', source: 'Patient chart' }],
+}
+
 // Immunization history per patient
 export const IMMUNIZATIONS = {
   p1: [

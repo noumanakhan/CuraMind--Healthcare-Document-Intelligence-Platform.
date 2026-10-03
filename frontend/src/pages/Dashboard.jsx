@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IcActivity, IcAlert, IcClock, IcDoc, IcFileCheck, IcPill, IcUsers } from '../components/icons.jsx'
+import { IcActivity, IcAlert, IcCalendar, IcClock, IcDoc, IcFileCheck, IcPill, IcUpload, IcUsers } from '../components/icons.jsx'
 import { useClinical } from '../context/PatientContext.jsx'
 import Modal from '../components/Modal.jsx'
 
@@ -81,7 +81,7 @@ function buildReviewItems(patients, documents, meds, labs) {
 export default function Dashboard({ onNavigate, onOpenPatient }) {
   const [showAppointments, setShowAppointments] = useState(false)
   const [showActivity, setShowActivity] = useState(false)
-  const { patients, documents, meds, labs, appointments, audit, vitals, canAccess } = useClinical()
+  const { patients, documents, vaultDocuments, meds, labs, appointments, audit, vitals, canAccess } = useClinical()
   const activePatients = patients.filter((patient) => !patient.archived)
   const admitted = activePatients.filter((patient) => patient.status === 'admitted')
   const pendingDischarge = activePatients.filter((patient) => patient.status === 'discharge-pending')
@@ -90,6 +90,13 @@ export default function Dashboard({ onNavigate, onOpenPatient }) {
   const reviewItems = buildReviewItems(activePatients, chartDocuments, meds, labs)
   const pendingFields = Object.values(chartDocuments).flat().reduce((count, doc) => count + doc.fields.filter((field) => field.flagged).length, 0)
   const medicationFlags = activePatients.reduce((count, patient) => count + (meds[patient.id] || []).filter((med) => med.flag).length, 0)
+  const activeVaultDocuments = (vaultDocuments || []).filter((document) => !document.archived)
+  const documentProcessing = {
+    processing: activeVaultDocuments.filter((document) => document.status === 'processing').length,
+    review: activeVaultDocuments.filter((document) => document.status === 'needs-review').length,
+    processed: activeVaultDocuments.filter((document) => document.status === 'processed').length,
+    failed: activeVaultDocuments.filter((document) => document.status === 'failed').length,
+  }
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const nextAppointments = activePatients.flatMap((patient) => (appointments[patient.id] || [])
@@ -147,6 +154,40 @@ export default function Dashboard({ onNavigate, onOpenPatient }) {
           <strong>{medicationFlags}</strong>
           <small>Review in patient context</small>
         </button>
+      </section>
+
+      <section className="dashboard-ops-grid" aria-label="Operations and shortcuts">
+        <div className="card dashboard-panel dashboard-processing-panel">
+          <div className="dashboard-panel-heading">
+            <div><div className="dashboard-panel-kicker">Document pipeline</div><h2>Ingestion status</h2></div>
+            <button className="text-action" onClick={() => onNavigate('documents')}>Open vault <span>→</span></button>
+          </div>
+          <div className="dashboard-processing-stats">
+            <button className="dashboard-processing-stat" onClick={() => onNavigate('documents')}>
+              <span className="processing-status-dot processing" /><span>Processing</span><strong>{documentProcessing.processing}</strong>
+            </button>
+            <button className="dashboard-processing-stat" onClick={() => onNavigate('documents')}>
+              <span className="processing-status-dot needs-review" /><span>Needs review</span><strong>{documentProcessing.review}</strong>
+            </button>
+            <button className="dashboard-processing-stat" onClick={() => onNavigate('documents')}>
+              <span className="processing-status-dot processed" /><span>Processed</span><strong>{documentProcessing.processed}</strong>
+            </button>
+            <button className="dashboard-processing-stat" onClick={() => onNavigate('documents')}>
+              <span className="processing-status-dot failed" /><span>Failed</span><strong>{documentProcessing.failed}</strong>
+            </button>
+          </div>
+        </div>
+
+        <div className="card dashboard-panel dashboard-shortcuts-panel">
+          <div className="dashboard-panel-heading">
+            <div><div className="dashboard-panel-kicker">Quick access</div><h2>Shortcuts</h2></div>
+          </div>
+          <div className="dashboard-shortcuts">
+            {canAccess('patients:create') && <button className="dashboard-shortcut" onClick={() => onNavigate('patients')}><IcUsers width={15} height={15} /><span>Add patient</span><b>→</b></button>}
+            {canAccess('documents:create') && <button className="dashboard-shortcut" onClick={() => onNavigate('upload')}><IcUpload width={15} height={15} /><span>Upload document</span><b>→</b></button>}
+            <button className="dashboard-shortcut" onClick={() => onNavigate('appointments')}><IcCalendar width={15} height={15} /><span>Appointments</span><b>→</b></button>
+          </div>
+        </div>
       </section>
 
       <section className="dashboard-main-grid">

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { PATIENT_STATUS_LABEL } from '../data/patientMock.js'
 import { IcArrowLeft, IcEye, IcEyeOff, IcUsers } from '../components/icons.jsx'
 import { useClinical } from '../context/PatientContext.jsx'
@@ -9,9 +10,13 @@ import Medications from './patient/Medications.jsx'
 import Appointments from './patient/Appointments.jsx'
 import DischargeSummary from './patient/DischargeSummary.jsx'
 import AuditLog from './patient/AuditLog.jsx'
+import Encounters from './patient/Encounters.jsx'
+import ProblemsAllergies from './patient/ProblemsAllergies.jsx'
 
 const TABS = [
   { id: 'overview', label: 'Overview' },
+  { id: 'encounters', label: 'Encounters' },
+  { id: 'problems', label: 'Problems & allergies' },
   { id: 'documents', label: 'Documents' },
   { id: 'labs', label: 'Lab trends' },
   { id: 'meds', label: 'Medications' },
@@ -25,7 +30,9 @@ function mask(value) {
 }
 
 export default function PatientDetail({ patientId, initialTab = 'overview', onBack }) {
-  const [tab, setTab] = useState(initialTab)
+  const navigate = useNavigate()
+  const { tab: routeTab } = useParams()
+  const tab = TABS.some((item) => item.id === (routeTab || initialTab)) ? (routeTab || initialTab) : 'overview'
   const [hidePHI, setHidePHI] = useState(false)
   const {
     patients,
@@ -37,6 +44,10 @@ export default function PatientDetail({ patientId, initialTab = 'overview', onBa
     immunizations,
     vitals,
     appointments,
+    encounters,
+    problems,
+    allergyRecords,
+    loadPatientData,
     addDocument,
     confirmField,
     signDischarge,
@@ -45,8 +56,15 @@ export default function PatientDetail({ patientId, initialTab = 'overview', onBa
     roleDefinition,
   } = useClinical()
 
+  useEffect(() => {
+    if (patientId && loadPatientData) {
+      loadPatientData(patientId)
+    }
+  }, [patientId, loadPatientData])
+
   const patient = patients.find((p) => p.id === patientId)
   if (!patient) return null
+
 
   const patientDocs = (documents[patientId] || []).filter((doc) => !doc.archived)
   const patientLabs = labs[patientId] || []
@@ -56,6 +74,9 @@ export default function PatientDetail({ patientId, initialTab = 'overview', onBa
   const patientImmunizations = immunizations[patientId] || []
   const patientVitals = vitals[patientId]
   const patientAppointments = appointments[patientId] || []
+  const patientEncounters = encounters[patientId] || []
+  const patientProblems = problems[patientId] || []
+  const patientAllergyRecords = allergyRecords[patientId] || []
 
   return (
     <div>
@@ -97,13 +118,15 @@ export default function PatientDetail({ patientId, initialTab = 'overview', onBa
 
       <div className="toolbar">
         {TABS.map((t) => (
-          <button key={t.id} className={'chip-filter' + (tab === t.id ? ' active' : '')} onClick={() => setTab(t.id)}>
+          <button key={t.id} className={'chip-filter' + (tab === t.id ? ' active' : '')} onClick={() => navigate(`/patients/${encodeURIComponent(patientId)}/${t.id}`)}>
             {t.label}
           </button>
         ))}
       </div>
 
-      {tab === 'overview' && <Overview patient={patient} vitals={patientVitals} immunizations={patientImmunizations} />}
+      {tab === 'overview' && <Overview patient={patient} vitals={patientVitals} immunizations={patientImmunizations} encounters={patientEncounters} problems={patientProblems} allergyRecords={patientAllergyRecords} />}
+      {tab === 'encounters' && <Encounters encounters={patientEncounters} />}
+      {tab === 'problems' && <ProblemsAllergies problems={patientProblems} allergyRecords={patientAllergyRecords} />}
       {tab === 'documents' && (
         <DocumentReview
           documents={patientDocs}

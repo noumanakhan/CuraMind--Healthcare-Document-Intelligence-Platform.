@@ -1,0 +1,11 @@
+fastapi>=0.110,<0.116
+uvicorn[standard]>=0.27,<0.35
+SQLAlchemy>=2.0,<2.1
+pydantic-settings>=2.2,<3
+PyJWT>=2.8,<3
+pwdlib[argon2]>=0.2,<0.3
+email-validator>=2.1,<3
+python-multipart>=0.0.9,<0.1
+pytest>=8,<9
+httpx>=0.27,<0.29
+alembic>=1.13,<2.0

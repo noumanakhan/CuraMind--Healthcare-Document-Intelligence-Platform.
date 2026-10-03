@@ -2,6 +2,7 @@ export const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: 'IcGrid' },
   { id: 'workqueue', label: 'Work queue', icon: 'IcFileCheck' },
   { id: 'patients', label: 'Patients', icon: 'IcUsers' },
+  { id: 'appointments', label: 'Appointments', icon: 'IcCalendar' },
   { id: 'documents', label: 'Document Vault', icon: 'IcDoc' },
   { id: 'upload', label: 'Upload', icon: 'IcUpload' },
   { id: 'ask', label: 'Clinical Assistant', icon: 'IcChat' },
@@ -11,6 +12,7 @@ export const NAV = [
 export const TITLES = {
   dashboard: ['Clinical Dashboard', 'Ward activity and review priorities'],
   workqueue: ['Work queue', 'Prioritized chart review and care coordination items'],
+  appointments: ['Appointments', 'Upcoming and past visits across patient charts'],
   documents: ['Document Vault', 'All clinical documents indexed across every patient'],
   upload: ['Upload', 'Add a new clinical document and attach it to a patient chart'],
   ask: ['Clinical Assistant', 'Ask questions across patient records, with cited sources'],

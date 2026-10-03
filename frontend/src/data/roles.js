@@ -1,67 +1,49 @@
-export const ROLE_DEFINITIONS = {
-  admin: {
-    label: 'Workspace admin',
-    user: 'Faisal S.',
-    description: 'Manage workspace data and administrative records. Archiving preserves a record in the audit trail.',
-    permissions: [
-      'patients:view',
-      'patients:create',
-      'patients:edit',
-      'patients:archive',
-      'documents:view',
-      'documents:create',
-      'documents:edit',
-      'documents:archive',
-      'appointments:manage',
-      'settings:manage',
-    ],
-  },
-  clinician: {
-    label: 'Clinician',
-    user: 'Dr. N. Fatima',
-    description: 'Review clinical information, verify extracted fields, manage appointments, and sign clinical workflows.',
-    permissions: [
-      'patients:view',
-      'documents:view',
-      'documents:create',
-      'clinical:review',
-      'appointments:manage',
-    ],
-  },
-  records: {
-    label: 'Records staff',
-    user: 'S. Ahmed',
-    description: 'Register patients and maintain demographic and document metadata; clinical decisions remain with clinicians.',
-    permissions: [
-      'patients:view',
-      'patients:create',
-      'patients:edit',
-      'documents:view',
-      'documents:create',
-      'documents:edit',
-      'appointments:manage',
-    ],
-  },
-  viewer: {
-    label: 'Read-only',
-    user: 'R. Malik',
-    description: 'View patient records and documents without changing them.',
-    permissions: ['patients:view', 'documents:view'],
-  },
+/**
+ * UI display metadata for roles and permissions.
+ *
+ * NOTE: Authorization is strictly enforced by the backend API.
+ * The permission checks in the frontend UI are for UX convenience only.
+ * The single source of truth for granted permissions is the GET /auth/permissions endpoint.
+ */
+
+export const ROLE_LABELS = {
+  admin: 'Workspace admin',
+  clinician: 'Clinician',
+  records: 'Records staff',
+  viewer: 'Read-only',
 }
 
-export const ROLE_IDS = Object.keys(ROLE_DEFINITIONS)
+export const ROLE_DESCRIPTIONS = {
+  admin: 'Manage workspace data, users, and administrative settings.',
+  clinician: 'Review clinical charts, verify extracted fields, manage care plans, and sign discharge summaries.',
+  records: 'Register patients, maintain demographics, upload documents, and schedule appointments.',
+  viewer: 'Read-only access to patient summaries and documents.',
+}
+
+export const ROLE_IDS = ['admin', 'clinician', 'records', 'viewer']
 
 export const PERMISSION_LABELS = [
   ['patients:view', 'View patient charts'],
   ['patients:create', 'Register patients'],
   ['patients:edit', 'Edit demographics'],
-  ['patients:archive', 'Archive patient records'],
+  ['clinical:chart_view', 'View full clinical charts and notes'],
   ['documents:view', 'View documents'],
   ['documents:create', 'Upload documents'],
   ['documents:edit', 'Edit document metadata'],
-  ['documents:archive', 'Archive documents'],
-  ['clinical:review', 'Confirm extracted fields / sign-off'],
-  ['appointments:manage', 'Manage appointments'],
+  ['fields:confirm', 'Confirm extracted fields'],
+  ['discharge:sign', 'Sign discharge summaries'],
+  ['appointments:manage', 'Schedule appointments'],
+  ['medications:review', 'Review medications'],
+  ['vitals:record', 'Record vitals & immunizations'],
   ['settings:manage', 'Manage workspace settings'],
+  ['users:manage', 'Manage workspace users and roles'],
+  ['audit:view', 'View clinical & authentication audit logs'],
 ]
+
+// Backward-compatible minimal role definition helper for display
+export const ROLE_DEFINITIONS = {
+  admin: { label: ROLE_LABELS.admin, description: ROLE_DESCRIPTIONS.admin },
+  clinician: { label: ROLE_LABELS.clinician, description: ROLE_DESCRIPTIONS.clinician },
+  records: { label: ROLE_LABELS.records, description: ROLE_DESCRIPTIONS.records },
+  viewer: { label: ROLE_LABELS.viewer, description: ROLE_DESCRIPTIONS.viewer },
+}

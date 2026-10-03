@@ -1,12 +1,12 @@
-import { IcGrid, IcDoc, IcUpload, IcChat, IcCompare, IcSettings, IcUsers, IcFileCheck } from './icons.jsx'
+import { IcGrid, IcDoc, IcUpload, IcChat, IcCompare, IcSettings, IcUsers, IcFileCheck, IcCalendar } from './icons.jsx'
 import brandLogo from '../logomain.png'
 import { NAV } from '../data/mock.js'
 import { useClinical } from '../context/PatientContext.jsx'
 
-const ICONS = { IcGrid, IcDoc, IcUpload, IcChat, IcCompare, IcSettings, IcUsers, IcFileCheck }
+const ICONS = { IcGrid, IcDoc, IcUpload, IcChat, IcCompare, IcSettings, IcUsers, IcFileCheck, IcCalendar }
 
-export default function Sidebar({ active, setActive, open, setOpen }) {
-  const { roleDefinition, canAccess } = useClinical()
+export default function Sidebar({ active, setActive, open, setOpen, onLogout }) {
+  const { roleDefinition, canAccess, user } = useClinical()
   const visibleNavigation = NAV.filter((item) => item.id !== 'upload' || canAccess('documents:create'))
 
   return (
@@ -57,13 +57,15 @@ export default function Sidebar({ active, setActive, open, setOpen }) {
 
       <div className="sidebar-foot">
         <div className="user-chip">
-          <div className="user-avatar">{roleDefinition.user.split(' ').map((part) => part[0]).join('').slice(0, 2)}</div>
+          <div className="user-avatar">{(user?.name || roleDefinition.label).split(' ').map((part) => part[0]).join('').slice(0, 2)}</div>
           <div className="user-meta">
-            <div className="name">{roleDefinition.user}</div>
+            <div className="name">{user?.name || 'Workspace user'}</div>
+            <div className="email">{user?.email}</div>
             <div className="role" style={{ color: '#818989' }}>
               {roleDefinition.label}
             </div>
           </div>
+          {onLogout && <button type="button" className="sidebar-signout" onClick={onLogout}>Sign out</button>}
         </div>
       </div>
     </div>

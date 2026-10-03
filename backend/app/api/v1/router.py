@@ -1,0 +1,8 @@
+from fastapi import APIRouter
+
+from app.controllers import auth, clinical, users
+
+router = APIRouter(prefix="/api/v1")
+router.include_router(auth.router)
+router.include_router(users.router)
+router.include_router(clinical.router)

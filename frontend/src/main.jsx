@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import { PatientProvider } from './context/PatientContext.jsx'
+import { AuthProvider } from './context/AuthContext.jsx'
 import favicon from './logomain.png'
 import './styles/index.css'
 
@@ -34,8 +35,10 @@ document.head.appendChild(faviconLink)
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <PatientProvider>
-      <App />
-    </PatientProvider>
+    <AuthProvider>
+      <PatientProvider>
+        <App />
+      </PatientProvider>
+    </AuthProvider>
   </React.StrictMode>
 )

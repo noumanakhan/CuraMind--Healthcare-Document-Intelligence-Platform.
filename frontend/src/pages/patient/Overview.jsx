@@ -7,7 +7,11 @@ function InfoRow({ label, value }) {
   )
 }
 
-export default function Overview({ patient, vitals, immunizations }) {
+export default function Overview({ patient, vitals, immunizations, encounters = [], problems = [], allergyRecords = [] }) {
+  const currentEncounter = encounters.find((encounter) => encounter.status !== 'completed')
+  const activeProblems = problems.filter((problem) => problem.status === 'active')
+  const activeAllergies = allergyRecords.filter((allergy) => allergy.status === 'active')
+
   return (
     <div className="row2">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -35,6 +39,31 @@ export default function Overview({ patient, vitals, immunizations }) {
           <InfoRow label="Attending" value={patient.attending} />
           <InfoRow label="Ward / setting" value={patient.ward} />
         </div>
+
+          <div className="card overview-highlight-card">
+            <div className="card-title">Current encounter</div>
+            {currentEncounter ? (
+              <>
+                <div className="overview-highlight-title">{currentEncounter.reason || currentEncounter.type}</div>
+                <div className="overview-highlight-meta">{currentEncounter.type} · {currentEncounter.date}</div>
+                <div className="overview-highlight-meta">{currentEncounter.location || patient.ward}</div>
+                <span className={`record-state ${currentEncounter.status}`}>{currentEncounter.status.replace(/-/g, ' ')}</span>
+              </>
+            ) : <div className="muted" style={{ fontSize: 12 }}>No active encounter on file.</div>}
+          </div>
+
+          <div className="card overview-highlight-card">
+            <div className="card-title">Active problems &amp; allergies</div>
+            <div className="overview-summary-group">
+              <span className="overview-summary-label">Problems</span>
+              {activeProblems.length ? activeProblems.slice(0, 3).map((problem) => <span className="overview-summary-item" key={problem.id}>{problem.name}</span>) : <span className="muted overview-no-data">No active problems listed</span>}
+            </div>
+            <div className="overview-summary-group">
+              <span className="overview-summary-label">Allergies</span>
+              {activeAllergies.length ? activeAllergies.map((allergy) => <span className="overview-summary-item allergy" key={allergy.id}>{allergy.substance}<small>{allergy.verification}</small></span>) : <span className="muted overview-no-data">No allergy records on file</span>}
+            </div>
+            <div className="overview-summary-disclaimer">Reported status should be verified in the source chart.</div>
+          </div>
 
         <div className="card">
           <div className="card-title">Latest vitals</div>

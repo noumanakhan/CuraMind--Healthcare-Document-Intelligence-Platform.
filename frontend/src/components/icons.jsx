@@ -39,6 +39,7 @@ export const IcUsers = buildIcon([
   'M16 3.13a4 4 0 0 1 0 7.75',
 ])
 export const IcActivity = buildIcon(['M22 12h-4l-3 9L9 3l-3 9H2'])
+export const IcCalendar = buildIcon(['M8 2v4', 'M16 2v4', 'M3 10h18', 'M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2z', 'M8 14h.01', 'M12 14h.01', 'M16 14h.01', 'M8 18h.01', 'M12 18h.01'])
 export const IcPill = buildIcon(['M10.5 20.5 3.5 13.5a5 5 0 1 1 7-7l7 7a5 5 0 1 1-7 7z', 'M8.5 8.5l7 7'])
 export const IcShield = buildIcon(['M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'])
 export const IcFileCheck = buildIcon(['M6 3h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z', 'M14 3v6h6', 'M9 14l2 2 4-4'])

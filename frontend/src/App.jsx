@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import Sidebar from './components/Sidebar.jsx'
 import Topbar from './components/Topbar.jsx'
 import Dashboard from './pages/Dashboard.jsx'
@@ -10,77 +11,97 @@ import Settings from './pages/Settings.jsx'
 import Patients from './pages/Patients.jsx'
 import PatientDetail from './pages/PatientDetail.jsx'
 import WorkQueue from './pages/WorkQueue.jsx'
+import AppointmentsOverview from './pages/AppointmentsOverview.jsx'
 import AuthScreen from './components/AuthScreen.jsx'
+import { useAuth } from './context/AuthContext.jsx'
 import { TITLES } from './data/mock.js'
 
-const VIEWS = {
-  dashboard: Dashboard,
-  documents: Documents,
-  upload: Upload,
-  ask: Ask,
-  compare: Compare,
-  workqueue: WorkQueue,
-  settings: Settings,
+function WorkspaceRoutes({ navigateTo, openPatient }) {
+  return (
+    <Routes>
+      <Route path="/" element={<Dashboard onNavigate={navigateTo} onOpenPatient={openPatient} />} />
+      <Route path="/workqueue" element={<WorkQueue onOpenPatient={openPatient} />} />
+      <Route path="/patients" element={<Patients onOpenPatient={openPatient} />} />
+      <Route path="/appointments" element={<AppointmentsOverview />} />
+      <Route path="/patients/:patientId" element={<PatientChartRoute onBack={() => navigateTo('patients')} />} />
+      <Route path="/patients/:patientId/:tab" element={<PatientChartRoute onBack={() => navigateTo('patients')} />} />
+      <Route path="/documents" element={<Documents />} />
+      <Route path="/upload" element={<Upload />} />
+      <Route path="/ask" element={<Ask />} />
+      <Route path="/compare" element={<Compare />} />
+      <Route path="/settings" element={<Settings />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
 }
 
-export default function App() {
+function PatientChartRoute({ onBack }) {
+  const { patientId, tab = 'overview' } = useParams()
+  return <PatientDetail key={patientId} patientId={patientId} initialTab={tab} onBack={onBack} />
+}
+
+function AppShell() {
+  const { user, authLoading, logout } = useAuth()
   const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [active, setActive] = useState('dashboard')
+  const restoredSession = useRef(false)
   const [open, setOpen] = useState(false)
-  const [selectedPatientId, setSelectedPatientId] = useState(null)
-  const [selectedPatientTab, setSelectedPatientTab] = useState('overview')
-
-  // Selecting a patient overrides the normal view switcher until the user backs out
-  const showingPatientDetail = active === 'patients' && selectedPatientId
-
-  const [title, sub] = showingPatientDetail
-    ? ['Patient chart', 'Documents, labs, medications, and discharge workflow']
+  const location = useLocation()
+  const navigate = useNavigate()
+  const isPatientChart = location.pathname.startsWith('/patients/')
+  const active = isPatientChart ? 'patients' : location.pathname.split('/')[1] || 'dashboard'
+  const [title, sub] = isPatientChart
+    ? ['Patient chart', 'Encounters, problems, documents, and clinical context']
     : active === 'patients'
-    ? ['Patients', 'Active roster across wards and outpatient']
-    : TITLES[active]
+      ? ['Patients', 'Active roster across wards and outpatient']
+      : TITLES[active] || TITLES.dashboard
 
-  const goToPatients = (id, tab = 'overview') => {
-    setActive('patients')
-    setSelectedPatientTab(tab)
-    setSelectedPatientId(id)
+  const navigateTo = (destination) => {
+    const path = destination.startsWith('/') ? destination : destination === 'dashboard' ? '/' : `/${destination}`
+    navigate(path)
   }
-  const openWorkItem = (id, tab) => {
-    setActive('patients')
-    setSelectedPatientTab(tab)
-    setSelectedPatientId(id)
-  }
-  const backToRoster = () => setSelectedPatientId(null)
-
-  const setActiveAndReset = (id) => {
-    setActive(id)
-    if (id !== 'patients') setSelectedPatientId(null)
+  const openPatient = (patientId, tab = 'overview') => {
+    if (!patientId) return
+    navigate(`/patients/${encodeURIComponent(patientId)}/${encodeURIComponent(tab)}`)
   }
 
-  let View
-  if (showingPatientDetail) {
-    View = () => <PatientDetail key={selectedPatientId} patientId={selectedPatientId} initialTab={selectedPatientTab} onBack={backToRoster} />
-  } else if (active === 'dashboard') {
-    View = () => <Dashboard onNavigate={setActiveAndReset} onOpenPatient={goToPatients} />
-  } else if (active === 'patients') {
-    View = () => <Patients onOpenPatient={goToPatients} />
-  } else if (active === 'workqueue') {
-    View = () => <WorkQueue onOpenPatient={openWorkItem} />
-  } else {
-    View = VIEWS[active]
+  const completeAuthentication = () => setIsAuthenticated(true)
+  const handleLogout = async () => {
+    await logout()
+    setIsAuthenticated(false)
+    navigate('/')
   }
+
+  useEffect(() => {
+    if (authLoading) return
+    if (!restoredSession.current) {
+      restoredSession.current = true
+      if (user) setIsAuthenticated(true)
+      return
+    }
+    if (!user) setIsAuthenticated(false)
+  }, [authLoading, user])
 
   return (
     <>
       <div className={`app${isAuthenticated ? '' : ' auth-preview'}`} aria-hidden={!isAuthenticated}>
-        <Sidebar active={active} setActive={setActiveAndReset} open={open} setOpen={setOpen} />
+        <Sidebar active={active} setActive={navigateTo} open={open} setOpen={setOpen} onLogout={handleLogout} />
         <div className="main">
-          <Topbar title={title} sub={sub} setOpen={setOpen} setActive={setActiveAndReset} />
+          <Topbar title={title} sub={sub} setOpen={setOpen} setActive={navigateTo} />
           <div className="content">
-            <View />
+            <WorkspaceRoutes navigateTo={navigateTo} openPatient={openPatient} />
           </div>
         </div>
       </div>
-      {!isAuthenticated && <AuthScreen onComplete={() => setIsAuthenticated(true)} />}
+      {authLoading && <div className="auth-loading-screen"><div className="auth-loading-mark" /><span>Restoring secure session…</span></div>}
+      {!authLoading && !isAuthenticated && <AuthScreen onComplete={completeAuthentication} />}
     </>
+  )
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AppShell />
+    </BrowserRouter>
   )
 }

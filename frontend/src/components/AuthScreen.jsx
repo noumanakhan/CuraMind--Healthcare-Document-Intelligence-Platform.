@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import brandLogo from '../logomain.png'
 import { IcEye, IcEyeOff, IcShield } from './icons.jsx'
+import { useAuth } from '../context/AuthContext.jsx'
 
 export default function AuthScreen({ onComplete }) {
+  const { login, register } = useAuth()
   const [mode, setMode] = useState('login')
   const [showPassword, setShowPassword] = useState(false)
   const [isExiting, setIsExiting] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -47,8 +50,20 @@ export default function AuthScreen({ onComplete }) {
       return
     }
 
+    setIsSubmitting(true)
     setError('')
-    setIsExiting(true)
+    const credentials = {
+      email: String(formData.get('email') || '').trim(),
+      password,
+    }
+    if (isSignup) credentials.name = String(formData.get('name') || '').trim()
+
+    Promise.resolve(isSignup ? register(credentials) : login(credentials))
+      .then(() => setIsExiting(true))
+      .catch((requestError) => {
+        setError(requestError.message || 'Unable to authenticate. Please try again.')
+        setIsSubmitting(false)
+      })
   }
 
   const changeMode = (nextMode) => {
@@ -91,7 +106,7 @@ export default function AuthScreen({ onComplete }) {
           <label className="auth-field">
             <span>Password</span>
             <span className="auth-password-wrap">
-              <input name="password" type={showPassword ? 'text' : 'password'} autoComplete={isSignup ? 'new-password' : 'current-password'} placeholder="At least 8 characters" minLength={8} required />
+              <input name="password" type={showPassword ? 'text' : 'password'} autoComplete={isSignup ? 'new-password' : 'current-password'} placeholder="At least 12 characters" minLength={12} required />
               <button type="button" className="auth-password-toggle" onClick={() => setShowPassword((shown) => !shown)} aria-label={showPassword ? 'Hide password' : 'Show password'}>
                 {showPassword ? <IcEyeOff width={17} height={17} /> : <IcEye width={17} height={17} />}
               </button>
@@ -100,22 +115,22 @@ export default function AuthScreen({ onComplete }) {
           {isSignup && (
             <label className="auth-field">
               <span>Confirm password</span>
-              <input name="confirmPassword" type={showPassword ? 'text' : 'password'} autoComplete="new-password" placeholder="Enter password again" minLength={8} required />
+              <input name="confirmPassword" type={showPassword ? 'text' : 'password'} autoComplete="new-password" placeholder="Enter password again" minLength={12} required />
             </label>
           )}
 
           {error && <div className="auth-error" role="alert">{error}</div>}
 
-          {!isSignup && <button type="button" className="auth-forgot" onClick={() => setError('Password recovery will be available when authentication is connected.')}>Forgot password?</button>}
+          {!isSignup && <button type="button" className="auth-forgot" onClick={() => setError('Password reset is not configured yet. Contact your workspace administrator.')}>Forgot password?</button>}
 
-          <button className="auth-submit" type="submit" disabled={isExiting}>
-            {isExiting ? 'Opening your workspace…' : isSignup ? 'Create account' : 'Sign in'}
+          <button className="auth-submit" type="submit" disabled={isExiting || isSubmitting}>
+            {isExiting ? 'Opening your workspace…' : isSubmitting ? 'Authenticating…' : isSignup ? 'Create account' : 'Sign in'}
             <span aria-hidden="true">↗</span>
           </button>
         </form>
 
         <div className="auth-security-note"><IcShield width={15} height={15} /><span>Your workspace is designed around privacy and responsible clinical review.</span></div>
-        <p className="auth-demo-note">Prototype preview · Authentication is simulated locally and is not connected to a secure account service.</p>
+        <p className="auth-demo-note">New accounts start with read-only access. A workspace administrator can assign additional permissions.</p>
       </section>
       <div className="auth-bottom-caption"><span>CURAMIND</span><i /> CLINICAL DOCUMENT INTELLIGENCE</div>
     </div>
