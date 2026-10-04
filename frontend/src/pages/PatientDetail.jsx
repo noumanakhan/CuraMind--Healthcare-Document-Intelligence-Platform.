@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { PATIENT_STATUS_LABEL } from '../data/patientMock.js'
 import { IcArrowLeft, IcEye, IcEyeOff, IcUsers } from '../components/icons.jsx'

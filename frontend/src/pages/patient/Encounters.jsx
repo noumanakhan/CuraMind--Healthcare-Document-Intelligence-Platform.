@@ -3,6 +3,7 @@ import { IcActivity, IcClock, IcUsers } from '../../components/icons.jsx'
 const STATUS_LABELS = {
   'in-progress': 'In progress',
   'discharge-pending': 'Discharge pending',
+  discharge_pending: 'Discharge pending',
   completed: 'Completed',
 }
 

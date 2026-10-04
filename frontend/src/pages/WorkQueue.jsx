@@ -51,7 +51,7 @@ function createWorkItems({ patients, documents, meds, labs }) {
       }
     })
 
-    if (patient.status === 'discharge-pending') {
+    if (patient.status === 'discharge-pending' || patient.status === 'discharge_pending') {
       items.push({
         id: `discharge-${patient.id}`,
         category: 'discharge',

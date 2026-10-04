@@ -209,7 +209,7 @@ export default function Settings() {
           </div>
         ))}
       </section>
-      <p className="settings-note">Role changes are sent to the authentication service. Clinical records in this prototype are still demo data stored locally in this browser.</p>
+      <p className="settings-note">Role changes are applied immediately by the authentication service. Clinical records are persisted in and served from the backend API — not stored locally in the browser.</p>
     </div>
   )
 }

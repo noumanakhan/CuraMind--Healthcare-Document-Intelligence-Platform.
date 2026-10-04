@@ -21,6 +21,12 @@ export function PatientProvider({ children }) {
   const [vitals, setVitals] = useState({})
   const [appointments, setAppointments] = useState({})
   const [vaultDocuments, setVaultDocuments] = useState([])
+  // encounters, problems, allergyRecords — not yet backed by API endpoints.
+  // Exposed as empty objects so PatientDetail tabs render their empty-state
+  // rather than crashing on undefined. Wire to real endpoints in Phase 3.
+  const [encounters, setEncounters] = useState({}) // eslint-disable-line no-unused-vars
+  const [problems, setProblems] = useState({})       // eslint-disable-line no-unused-vars
+  const [allergyRecords, setAllergyRecords] = useState({}) // eslint-disable-line no-unused-vars
 
   const role = user?.role || 'viewer'
   const roleDefinition = ROLE_DEFINITIONS[role] || ROLE_DEFINITIONS.viewer
@@ -337,10 +343,16 @@ export function PatientProvider({ children }) {
     vitals,
     appointments,
     vaultDocuments,
+    // Phase 3 stubs — no API endpoints yet; always empty so tabs render cleanly
+    encounters,
+    problems,
+    allergyRecords,
     role,
     user,
     roleDefinition,
     canAccess,
+    // Authenticated fetch helper exposed for ad-hoc API calls (e.g. dashboard/stats)
+    request,
     addPatient,
     updatePatient,
     archivePatient,

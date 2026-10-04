@@ -1,76 +1,88 @@
 # CuraMind Project Handoff
 
 ## Overview
-CuraMind is a clinical document intelligence workspace with multi-role access control, secure authentication, and workspace-scoped clinical data records.
+CuraMind is an enterprise clinical document intelligence workspace featuring multi-role access control, secure authentication, workspace-scoped clinical records, and a standalone **RAG / LLM Assistant & Deterministic Document Comparison Service** built with pure PostgreSQL + pgvector.
 
-## Architecture & Layering
-The backend is structured under `backend/app/`:
-- **`core/`**: Settings (`config.py`), security hashing/JWT (`security.py`), and RBAC policy (`rbac.py`).
-- **`db/`**: SQLAlchemy session factory, declarative base, and Alembic database migrations (`backend/alembic/`).
-- **`models/`**: Workspace-scoped entities with UUID primary keys:
-  - `Workspace`, `User`, `RefreshSession`, `AuditEvent`
-  - `Patient`, `Allergy`
-  - `Document`, `ExtractedField`
-  - `Medication`
-  - `LabTest`, `LabResultPoint`
-  - `Appointment`
-  - `DischargeDraft`, `DischargeParagraph`
-  - `Immunization`, `Vitals`
-- **`schemas/`**: Pydantic v2 validation contracts for auth, user administration, and clinical records.
-- **`services/`**: Business logic, workspace isolation enforcement, and audit event emission:
-  - `workspaces.py`, `audit.py`, `clinical.py`
-- **`controllers/`**: Versioned REST endpoints under `/api/v1`:
-  - `auth.py`, `users.py`, `clinical.py`
+---
 
-## Role-Based Access Control (RBAC)
-Four primary roles enforced server-side:
-- **`admin`**: Full workspace administration, user & role management, clinical actions, and audit logs.
-- **`clinician`**: Clinical reviews, chart viewing, document uploads, extracted field confirmations, discharge signing, medication reviews, and vitals recording.
-- **`records`**: Patient registration & demographic editing, document uploads, and appointment scheduling.
-- **`viewer`**: Read-only demographic and document viewing.
+## Architecture & Services
 
-## Implemented API Endpoints (`/api/v1`)
-- **Authentication**:
-  - `POST /auth/register`
-  - `POST /auth/login`
-  - `POST /auth/refresh`
-  - `POST /auth/logout`
-  - `GET  /auth/me`
-  - `GET  /auth/permissions`
-- **User Administration**:
-  - `GET   /users`
-  - `PATCH /users/{id}/role`
-  - `PATCH /users/{id}/status`
-- **Clinical & Workspace Operations**:
-  - `GET    /patients` (paginated, workspace-scoped, status filter, search)
-  - `POST   /patients`
-  - `GET    /patients/{id}`
-  - `PATCH  /patients/{id}`
-  - `GET    /patients/{id}/documents`
-  - `POST   /patients/{id}/documents`
-  - `PATCH  /documents/{doc_id}/fields/{field_id}/confirm`
-  - `GET    /patients/{id}/medications`
-  - `PATCH  /medications/{id}/review`
-  - `GET    /patients/{id}/labs`
-  - `POST   /patients/{id}/labs/{test_id}/points`
-  - `GET    /patients/{id}/appointments`
-  - `POST   /patients/{id}/appointments`
-  - `GET    /patients/{id}/discharge`
-  - `POST   /patients/{id}/discharge/sign`
-  - `GET    /patients/{id}/immunizations`
-  - `GET    /patients/{id}/vitals/latest`
-  - `POST   /patients/{id}/vitals`
-  - `GET    /patients/{id}/audit` (admin-only)
-  - `GET    /dashboard/stats` (workspace-scoped metrics)
+The application consists of two decoupled backend services and a React frontend:
 
-## Database Migrations
-Alembic is configured in `backend/` using `core/config.py` database settings:
-- Initial migration `ff7896daaf32`: Core auth and workspace schema.
-- Migration `a73fc8a503aa`: Clinical models (`patients`, `allergies`, `documents`, `extracted_fields`, `medications`, `labs`, `appointments`, `discharge`, `immunizations`, `vitals`).
-- Migration `8d254f062da3`: `patient_id` column addition to audit events.
+### 1. Core Clinical Backend (`backend/app/`)
+- **Framework & DB**: FastAPI + SQLAlchemy + Alembic migrations.
+- **`core/`**: JWT auth (`security.py`), RBAC authorization (`rbac.py`).
+- **`models/`**: Clinical database models (`Patient`, `Document`, `Medication`, `LabTest`, `Appointment`, `DischargeDraft`, `Immunization`, `Vitals`, `AuditEvent`).
+- **`controllers/`**: Endpoints under `/api/v1` for patient CRUD, charts, discharge summaries, and dashboard stats.
 
-## Latest Verification
-- **Automated Tests**: 10/10 pytest tests passing (`tests/test_auth.py`, `tests/test_clinical.py`).
-  - Tests verify workspace isolation across all resources, role denials/allowances, soft deletion, audit logging, and idempotency conflicts (409).
-- **Python Compilation**: `compileall` clean on `app`, `tests`, and `alembic`.
-- **Frontend Build**: `npm run build` completed cleanly with zero warnings or errors.
+### 2. Standalone RAG & Comparison Service (`rag-service/app/`)
+*Built in a dedicated directory separate from `backend/`, using **pure PostgreSQL** without SQLAlchemy:*
+- **Database (`app/db/`)**:
+  - `schema.sql`: Pure PostgreSQL DDL with `pgvector` extension (`vector(1536)`).
+  - `postgres.py`: Connection pool (`asyncpg` / `psycopg3`) executing parameterized raw SQL queries (`$1, $2`).
+  - `memory_fallback.py`: In-memory PostgreSQL relational store with vector cosine similarity for test/offline execution.
+- **Ingestion Pipeline (`app/services/ingestion.py`, `ocr.py`)**:
+  - Full-text extraction from PDF (`pypdf`), DOCX (`docx`), and OCR fallback for scanned images (`pytesseract` / mock OCR interface).
+  - Page-preserving text chunking (~500 chars with ~50 overlap).
+  - Background asynchronous task runner with non-blocking HTTP 202 uploads and granular error states (`processing`, `processed`, `failed`).
+- **Embeddings & Retrieval (`app/services/embeddings.py`, `retrieval.py`)**:
+  - Swappable embedding provider interface (`OpenAI`, `Claude`, `DeterministicMock`).
+  - Permission-safe vector search pre-filtered by `workspace_id`, `patient_id`, and user role (viewer/records restricted from clinical notes).
+  - Nearest neighbor search via pgvector cosine distance operator `<=>`.
+  - Parent document metadata and page numbers joined directly in retrieval output for real-time citations.
+- **Deterministic Document Comparison (`app/services/comparison.py`)**:
+  - Structured field diffing (labels, matched/differ/missing status).
+  - Full-text line diffing via `difflib.SequenceMatcher`.
+  - Strict workspace boundaries (cross-workspace comparisons rejected).
+- **Clinical RAG Assistant (`app/services/rag_assistant.py`, `llm.py`)**:
+  - Swappable LLM interface (`Anthropic/Claude`, `OpenAI`, `MockLLM`).
+  - Grounded prompt engineering: answers strictly from retrieved chunks, clinical disclaimers, explicit refusal on questions with no matching records.
+  - Generates verified citation objects (`document_id`, `document_name`, `page_number`, `snippet`).
+  - Multi-turn conversation persistence (`conversations`, `conversation_messages`).
+- **Evaluation & Cost Controls (`app/services/evaluation.py`, `rate_limiter.py`)**:
+  - Sliding-window rate limiter per user/workspace on AI endpoints.
+  - 16-case clinical benchmark test suite measuring accuracy, groundedness, citations, and refusal behaviors.
+
+### 3. Frontend Application (`frontend/`)
+- **`Ask.jsx`**: Wired to conversation & RAG assistant endpoints with real citation chips, loading states, and clinical notice banners.
+- **`Compare.jsx`**: Wired to deterministic document comparison with dual document pickers, structured diff highlighting, and difference counters.
+
+---
+
+## API Endpoints Summary
+
+### Core Backend (`http://localhost:8000/api/v1`)
+- `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me`, `GET /auth/permissions`
+- `GET /users`, `PATCH /users/{id}/role`, `PATCH /users/{id}/status`
+- `GET /patients`, `POST /patients`, `GET /patients/{id}`, `PATCH /patients/{id}`
+- `GET/POST /patients/{id}/documents`, `PATCH /documents/{id}/fields/{id}/confirm`
+- `GET /patients/{id}/medications`, `PATCH /medications/{id}/review`
+- `GET /patients/{id}/labs`, `POST /patients/{id}/labs/{test_id}/points`
+- `GET/POST /patients/{id}/appointments`
+- `GET /patients/{id}/discharge`, `POST /patients/{id}/discharge/sign`
+- `GET /patients/{id}/immunizations`, `GET/POST /patients/{id}/vitals`
+- `GET /patients/{id}/audit`, `GET /dashboard/stats`
+
+### RAG & Comparison Service (`http://localhost:8001/api/v1`)
+- `POST /documents/upload` (multipart background ingestion)
+- `POST /documents`, `GET /documents`, `GET /documents/{id}`, `DELETE /documents/{id}`
+- `POST /retrieval/search` (vector similarity search)
+- `POST /patients/{id}/documents/compare`, `POST /documents/compare`
+- `GET/POST /patients/{id}/conversations`, `GET/POST /conversations`
+- `GET /conversations/{id}/messages`, `POST /conversations/{id}/messages`
+- `POST /evaluation/run` (16-case benchmark evaluation)
+
+---
+
+## Test Verification Suite
+
+- **Core Backend**: `10/10 passed` (`pytest backend/tests/`)
+- **RAG & Comparison Service**: `13/13 passed` (`pytest rag-service/tests/`)
+  - `test_ingestion.py`: PDF, DOCX, OCR fallback, background task, error handling.
+  - `test_chunking_embeddings.py`: Chunking fidelity, page numbers, 1536-dim embeddings, soft-delete exclusion.
+  - `test_retrieval_isolation.py`: Cross-workspace isolation, cross-patient isolation, RBAC role filtering.
+  - `test_comparison.py`: Structured & text diffs, cross-workspace rejection.
+  - `test_rag_assistant.py`: Grounded answers, refusal when not found, citation extraction, patient isolation.
+  - `test_conversations.py`: Multi-turn chat persistence and history.
+  - `test_evaluation.py`: 16-case clinical benchmark test execution.
+- **Frontend Build**: `npm run build` completed cleanly with zero errors.

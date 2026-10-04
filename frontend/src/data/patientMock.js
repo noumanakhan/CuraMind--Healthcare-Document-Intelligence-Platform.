@@ -171,6 +171,7 @@ export const APPOINTMENTS = {
 export const PATIENT_STATUS_LABEL = {
   admitted: 'Admitted',
   'discharge-pending': 'Discharge pending',
+  discharge_pending: 'Discharge pending',
   discharged: 'Discharged',
 }
 

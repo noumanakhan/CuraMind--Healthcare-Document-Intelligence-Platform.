@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { IcActivity, IcAlert, IcCalendar, IcClock, IcDoc, IcFileCheck, IcPill, IcUpload, IcUsers } from '../components/icons.jsx'
 import { useClinical } from '../context/PatientContext.jsx'
 import Modal from '../components/Modal.jsx'
 
-const STATUS_LABELS = { admitted: 'Admitted', 'discharge-pending': 'Discharge pending', discharged: 'Discharged' }
+const STATUS_LABELS = { admitted: 'Admitted', 'discharge-pending': 'Discharge pending', discharge_pending: 'Discharge pending', discharged: 'Discharged' }
 
 function parseDate(value) {
   const match = /^\s*(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})\s*$/.exec(value || '')
@@ -50,7 +50,7 @@ function buildReviewItems(patients, documents, meds, labs) {
         })
       }
     })
-    if (patient.status === 'discharge-pending') {
+    if (patient.status === 'discharge-pending' || patient.status === 'discharge_pending') {
       items.push({
         id: `discharge-${patient.id}`,
         kind: 'discharge',
@@ -81,11 +81,25 @@ function buildReviewItems(patients, documents, meds, labs) {
 export default function Dashboard({ onNavigate, onOpenPatient }) {
   const [showAppointments, setShowAppointments] = useState(false)
   const [showActivity, setShowActivity] = useState(false)
-  const { patients, documents, vaultDocuments, meds, labs, appointments, audit, vitals, canAccess } = useClinical()
+  const [apiStats, setApiStats] = useState(null)
+  const { patients, documents, vaultDocuments, meds, labs, appointments, audit, vitals, canAccess, request } = useClinical()
+
+  useEffect(() => {
+    if (!request) return
+    request('/dashboard/stats')
+      .then((data) => setApiStats(data))
+      .catch(() => setApiStats(null))
+  }, [request])
+
   const activePatients = patients.filter((patient) => !patient.archived)
   const admitted = activePatients.filter((patient) => patient.status === 'admitted')
-  const pendingDischarge = activePatients.filter((patient) => patient.status === 'discharge-pending')
+  const pendingDischarge = activePatients.filter((patient) => patient.status === 'discharge-pending' || patient.status === 'discharge_pending')
   const censusPatients = activePatients.filter((patient) => patient.status !== 'discharged')
+
+  // Use live API counts when available, fall back to local derived counts
+  const statAdmitted = apiStats?.admitted ?? admitted.length
+  const statDischargePending = apiStats?.discharge_pending ?? pendingDischarge.length
+  const statCensus = apiStats != null ? (apiStats.admitted + apiStats.discharge_pending) : censusPatients.length
   const chartDocuments = Object.fromEntries(Object.entries(documents).map(([id, records]) => [id, records.filter((doc) => !doc.archived)]))
   const reviewItems = buildReviewItems(activePatients, chartDocuments, meds, labs)
   const pendingFields = Object.values(chartDocuments).flat().reduce((count, doc) => count + doc.fields.filter((field) => field.flagged).length, 0)
@@ -124,7 +138,7 @@ export default function Dashboard({ onNavigate, onOpenPatient }) {
           <p>{todayLabel} <span className="dashboard-welcome-separator">·</span> Your service overview for today.</p>
         </div>
         <div className="dashboard-welcome-actions">
-          <span className="dashboard-demo-chip"><span /> Demo environment</span>
+          <span className="dashboard-demo-chip"><span /> Live workspace</span>
           <button className="btn btn-primary" onClick={() => onNavigate('workqueue')}><IcFileCheck width={15} height={15} /> Review work queue</button>
         </div>
       </section>
@@ -133,13 +147,13 @@ export default function Dashboard({ onNavigate, onOpenPatient }) {
         <button className="card dashboard-metric" onClick={() => onNavigate('patients')}>
           <span className="dashboard-metric-icon teal"><IcUsers width={17} height={17} /></span>
           <span className="dashboard-metric-label">Inpatient census</span>
-          <strong>{censusPatients.length}</strong>
-          <small>{admitted.length} admitted · {pendingDischarge.length} discharge pending</small>
+          <strong>{statCensus}</strong>
+          <small>{statAdmitted} admitted · {statDischargePending} discharge pending</small>
         </button>
         <button className="card dashboard-metric" onClick={() => onOpenPatient(pendingDischarge[0]?.id, 'discharge')} disabled={!pendingDischarge.length}>
           <span className="dashboard-metric-icon amber"><IcFileCheck width={17} height={17} /></span>
           <span className="dashboard-metric-label">Discharge pending</span>
-          <strong>{pendingDischarge.length}</strong>
+          <strong>{statDischargePending}</strong>
           <small>Patients awaiting workflow review</small>
         </button>
         <button className="card dashboard-metric" onClick={() => onNavigate('workqueue')}>
@@ -285,7 +299,8 @@ export default function Dashboard({ onNavigate, onOpenPatient }) {
       </section>
 
       <footer className="dashboard-footer">
-        <span>Snapshot generated from the current browser demo data.</span>
+        {/* UX display only — backend enforces all authorization regardless of what the UI shows */}
+        <span>Workspace data served from the backend API.</span>
         {canAccess('documents:create') && <button className="text-action" onClick={() => onNavigate('upload')}>Upload a document <span>→</span></button>}
       </footer>
 

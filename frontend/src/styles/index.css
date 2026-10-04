@@ -690,6 +690,7 @@ body {
   color: var(--teal);
 }
 .encounter-status.discharge-pending,
+.encounter-status.discharge_pending,
 .record-state.monitoring,
 .record-state.needs-review {
   background: var(--amber-soft);
@@ -1253,7 +1254,8 @@ body {
   font-weight: 700;
   white-space: nowrap;
 }
-.dashboard-status.discharge-pending {
+.dashboard-status.discharge-pending,
+.dashboard-status.discharge_pending {
   background: var(--amber-soft);
   color: var(--amber);
 }

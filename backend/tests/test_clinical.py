@@ -75,16 +75,17 @@ def test_workspace_isolation_for_all_entities(client):
     u1, ws1, h1 = make_user(db, "Hospital One", "admin1@h1.com", "admin")
     u2, ws2, h2 = make_user(db, "Hospital Two", "admin2@h2.com", "admin")
 
-    # Admin 1 in WS1 creates patient
+    # Admin 1 in WS1 creates patient with allergies
     res = client.post("/api/v1/patients", json={
         "name": "Jane Hospital1",
         "dob": "1990-01-01",
         "sex": "female",
+        "allergies": ["Sulfa"],
     }, headers=h1)
     assert res.status_code == 201
     p1_id = res.json()["id"]
 
-    # Admin 2 in WS2 cannot see patient in list or by ID
+    # 1. Patient List & Get isolation
     res2_list = client.get("/api/v1/patients", headers=h2)
     assert res2_list.status_code == 200
     assert len(res2_list.json()["patients"]) == 0
@@ -92,18 +93,64 @@ def test_workspace_isolation_for_all_entities(client):
     res2_get = client.get(f"/api/v1/patients/{p1_id}", headers=h2)
     assert res2_get.status_code == 404
 
-    # Admin 2 cannot add document to patient in WS1
-    res2_doc = client.post(f"/api/v1/patients/{p1_id}/documents", json={
-        "name": "Infiltrate Note",
-        "type": "clinical_note",
-    }, headers=h2)
-    assert res2_doc.status_code == 404
+    # 2. Documents & Extracted Fields isolation
+    doc1 = client.post(f"/api/v1/patients/{p1_id}/documents", json={
+        "name": "Lab Note",
+        "type": "lab_report",
+        "fields": [{"label": "Platelets", "value": "250"}],
+    }, headers=h1).json()
+    doc1_id = doc1["id"]
+    field1_id = doc1["extracted_fields"][0]["id"]
 
-    # Admin 2 cannot get discharge summary of patient in WS1
-    res2_discharge = client.get(f"/api/v1/patients/{p1_id}/discharge", headers=h2)
-    assert res2_discharge.status_code == 404
+    assert client.get(f"/api/v1/patients/{p1_id}/documents", headers=h2).status_code == 404
+    assert client.post(f"/api/v1/patients/{p1_id}/documents", json={"name": "Attacked Note", "type": "clinical_note"}, headers=h2).status_code == 404
+    assert client.patch(f"/api/v1/documents/{doc1_id}/fields/{field1_id}/confirm", headers=h2).status_code == 404
+
+    # 3. Medications isolation
+    med1 = client.post(f"/api/v1/patients/{p1_id}/documents", json={"name": "Intake", "type": "intake_form"}, headers=h1)
+    from app.models import Medication
+    m = Medication(workspace_id=ws1.id, patient_id=p1_id, name="Aspirin", dose="81mg")
+    db.add(m)
+    db.commit()
+    db.refresh(m)
+
+    assert client.get(f"/api/v1/patients/{p1_id}/medications", headers=h2).status_code == 404
+    assert client.patch(f"/api/v1/medications/{m.id}/review", headers=h2).status_code == 404
+
+    # 4. Labs isolation
+    from app.models import LabTest
+    lt = LabTest(workspace_id=ws1.id, patient_id=p1_id, test_name="Hemoglobin", unit="g/dL")
+    db.add(lt)
+    db.commit()
+    db.refresh(lt)
+
+    assert client.get(f"/api/v1/patients/{p1_id}/labs", headers=h2).status_code == 404
+    assert client.post(f"/api/v1/patients/{p1_id}/labs/{lt.id}/points", json={"value": 14.2}, headers=h2).status_code == 404
+
+    # 5. Appointments isolation
+    assert client.get(f"/api/v1/patients/{p1_id}/appointments", headers=h2).status_code == 404
+    assert client.post(f"/api/v1/patients/{p1_id}/appointments", json={
+        "type": "Checkup", "with_provider_name": "Dr. Other", "date": "2026-11-05", "time": "09:00"
+    }, headers=h2).status_code == 404
+
+    # 6. Discharge summary isolation
+    assert client.get(f"/api/v1/patients/{p1_id}/discharge", headers=h2).status_code == 404
+    assert client.post(f"/api/v1/patients/{p1_id}/discharge/sign", headers=h2).status_code == 404
+
+    # 7. Immunizations & Vitals isolation
+    assert client.get(f"/api/v1/patients/{p1_id}/immunizations", headers=h2).status_code == 404
+    assert client.get(f"/api/v1/patients/{p1_id}/vitals/latest", headers=h2).status_code == 404
+    assert client.post(f"/api/v1/patients/{p1_id}/vitals", json={
+        "bp": "120/80", "hr": 72, "temp": 98.6, "spo2": 99, "weight": 70
+    }, headers=h2).status_code == 404
+
+    # 8. Audit log & Dashboard stats isolation
+    assert client.get(f"/api/v1/patients/{p1_id}/audit", headers=h2).status_code == 404
+    stats2 = client.get("/api/v1/dashboard/stats", headers=h2).json()
+    assert stats2["total_patients"] == 0
 
     db.close()
+
 
 
 
