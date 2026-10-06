@@ -56,6 +56,8 @@ CREATE TABLE IF NOT EXISTS document_chunks (
 CREATE INDEX IF NOT EXISTS idx_chunks_workspace ON document_chunks(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_chunks_patient ON document_chunks(workspace_id, patient_id);
 CREATE INDEX IF NOT EXISTS idx_chunks_document ON document_chunks(document_id);
+-- Full-Text Search GIN Index for Keyword Search (BM25 / tsvector)
+CREATE INDEX IF NOT EXISTS idx_chunks_fts ON document_chunks USING GIN(to_tsvector('english', chunk_text));
 
 -- Conversations Table (RAG Chat Sessions)
 CREATE TABLE IF NOT EXISTS conversations (

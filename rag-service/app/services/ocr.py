@@ -16,19 +16,11 @@ class OCRProvider(abc.ABC):
 
 class MockOCRProvider(OCRProvider):
     """
-    Deterministic Mock OCR provider for testing and environments without Tesseract binary.
+    Safe no-op OCR provider for tests and environments without a real OCR engine.
     """
     def extract_text_from_image(self, image_bytes: bytes, filename: Optional[str] = None) -> str:
-        if not image_bytes:
-            return ""
-        # Deterministic extraction based on header/content
-        return (
-            f"[OCR EXTRACTED TEXT FROM {filename or 'scanned_image.png'}]\n"
-            "PATIENT CLINICAL SUMMARY (SCANNED NOTE)\n"
-            "Blood Pressure: 130/85 mmHg. Heart Rate: 72 bpm.\n"
-            "Assessment: Mild acute bronchitis. Prescribed oral Azithromycin 250mg once daily for 5 days.\n"
-            "Follow-up in 7 days if symptoms persist."
-        )
+        # Returning invented clinical facts in mock mode can contaminate the index.
+        return ""
 
 
 class TesseractOCRProvider(OCRProvider):
@@ -55,7 +47,7 @@ class TesseractOCRProvider(OCRProvider):
             return text.strip()
         except Exception as e:
             logger.error(f"Tesseract OCR failed: {e}")
-            return f"[OCR Error on {filename or 'document'}: {str(e)}]"
+            return ""
 
 
 def get_ocr_provider() -> OCRProvider:

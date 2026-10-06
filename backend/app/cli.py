@@ -1,5 +1,12 @@
 import argparse
 import getpass
+import sys
+from pathlib import Path
+
+# Ensure backend root is in sys.path
+BACKEND_ROOT = Path(__file__).resolve().parent.parent
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
 
 from sqlalchemy.exc import IntegrityError
 
@@ -47,6 +54,18 @@ def create_user(email: str, name: str, role: str):
         db.close()
 
 
+from app.db.seed_demo_data import seed_demo_clinical_data
+
+
+def seed_demo():
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        seed_demo_clinical_data(db)
+    finally:
+        db.close()
+
+
 def main():
     parser = argparse.ArgumentParser(description="CuraMind local account administration")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -54,9 +73,14 @@ def main():
     create_parser.add_argument("--email", required=True)
     create_parser.add_argument("--name", required=True)
     create_parser.add_argument("--role", choices=sorted(ROLE_PERMISSIONS), default="admin")
+
+    subparsers.add_parser("seed-demo", help="Seed complete mock clinical dataset (patients, vault docs, appointments, vitals, labs, discharge drafts)")
+
     args = parser.parse_args()
     if args.command == "create-user":
         create_user(args.email, args.name, args.role)
+    elif args.command == "seed-demo":
+        seed_demo()
 
 
 if __name__ == "__main__":

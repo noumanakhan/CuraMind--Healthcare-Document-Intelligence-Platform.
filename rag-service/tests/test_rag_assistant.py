@@ -51,7 +51,18 @@ async def test_rag_assistant_grounded_answer_and_citations():
     assert "Cardiology Consultation Note" in reply.content or "Penicillin" in reply.content or "Lisinopril" in reply.content
     assert reply.disclaimer is not None
 
-    # 2. Ask question with zero matching context (Out of domain query) -> Must refuse
+    # 2. Ask conversational greeting -> Should return helpful clinical assistant welcome without refusal error
+    reply_greeting = await ask_rag_assistant(
+        conversation_id=conv["id"],
+        user_query="hi",
+        user=user,
+        patient_id=pat_id,
+    )
+    assert reply_greeting.role == "assistant"
+    assert "CuraMind" in reply_greeting.content or "Assistant" in reply_greeting.content
+    assert "No relevant" not in reply_greeting.content
+
+    # 3. Ask question with zero matching context (Out of domain query) -> Must refuse
     reply_unrelated = await ask_rag_assistant(
         conversation_id=conv["id"],
         user_query="What is the stock price of Apple Inc and did the patient travel to Mars?",

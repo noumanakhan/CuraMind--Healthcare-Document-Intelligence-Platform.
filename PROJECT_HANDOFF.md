@@ -22,12 +22,14 @@ The application consists of two decoupled backend services and a React frontend:
   - `postgres.py`: Connection pool (`asyncpg` / `psycopg3`) executing parameterized raw SQL queries (`$1, $2`).
   - `memory_fallback.py`: In-memory PostgreSQL relational store with vector cosine similarity for test/offline execution.
 - **Ingestion Pipeline (`app/services/ingestion.py`, `ocr.py`)**:
-  - Full-text extraction from PDF (`pypdf`), DOCX (`docx`), and OCR fallback for scanned images (`pytesseract` / mock OCR interface).
-  - Page-preserving text chunking (~500 chars with ~50 overlap).
+  - LangChain Community loaders for PDF, DOCX, and text, with page-preserving metadata and the existing pypdf fallback.
+  - Scanned PDF pages are rendered before real OCR; mock OCR returns no text so it cannot invent clinical facts.
+  - LangChain page-preserving chunking (~500 chars with ~50 overlap).
   - Background asynchronous task runner with non-blocking HTTP 202 uploads and granular error states (`processing`, `processed`, `failed`).
 - **Embeddings & Retrieval (`app/services/embeddings.py`, `retrieval.py`)**:
-  - Swappable embedding provider interface (`OpenAI`, `Claude`, `DeterministicMock`).
+  - Swappable LangChain embedding adapters (`OpenAI`, `Gemini`, `DeterministicMock`); explicit provider failures do not silently mix in mock vectors.
   - Permission-safe vector search pre-filtered by `workspace_id`, `patient_id`, and user role (viewer/records restricted from clinical notes).
+  - Native LangChain `BaseRetriever` wraps the existing authorized SQL; configured semantic relevance filtering runs before chunks enter the model.
   - Nearest neighbor search via pgvector cosine distance operator `<=>`.
   - Parent document metadata and page numbers joined directly in retrieval output for real-time citations.
 - **Deterministic Document Comparison (`app/services/comparison.py`)**:
@@ -35,7 +37,7 @@ The application consists of two decoupled backend services and a React frontend:
   - Full-text line diffing via `difflib.SequenceMatcher`.
   - Strict workspace boundaries (cross-workspace comparisons rejected).
 - **Clinical RAG Assistant (`app/services/rag_assistant.py`, `llm.py`)**:
-  - Swappable LLM interface (`Anthropic/Claude`, `OpenAI`, `MockLLM`).
+  - LCEL retriever → prompt → configured LangChain chat model / explicit mock runnable → output parser pipeline (`Gemini`, `Anthropic/Claude`, `OpenAI`/APInex, `MockLLM`).
   - Grounded prompt engineering: answers strictly from retrieved chunks, clinical disclaimers, explicit refusal on questions with no matching records.
   - Generates verified citation objects (`document_id`, `document_name`, `page_number`, `snippet`).
   - Multi-turn conversation persistence (`conversations`, `conversation_messages`).
@@ -77,7 +79,7 @@ The application consists of two decoupled backend services and a React frontend:
 ## Test Verification Suite
 
 - **Core Backend**: `10/10 passed` (`pytest backend/tests/`)
-- **RAG & Comparison Service**: `13/13 passed` (`pytest rag-service/tests/`)
+- **RAG & Comparison Service**: `23/23 passed` (`pytest rag-service/tests/`)
   - `test_ingestion.py`: PDF, DOCX, OCR fallback, background task, error handling.
   - `test_chunking_embeddings.py`: Chunking fidelity, page numbers, 1536-dim embeddings, soft-delete exclusion.
   - `test_retrieval_isolation.py`: Cross-workspace isolation, cross-patient isolation, RBAC role filtering.

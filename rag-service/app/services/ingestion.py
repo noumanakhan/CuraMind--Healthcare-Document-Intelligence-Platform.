@@ -1,9 +1,11 @@
 import io
 import logging
+import tempfile
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
-from pypdf import PdfReader
-import docx
+
+from langchain_community.document_loaders import Docx2txtLoader, PyPDFLoader, TextLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app.db import postgres as db
 from app.services.embeddings import get_embedding_provider
@@ -13,108 +15,148 @@ logger = logging.getLogger("rag_service.ingestion")
 
 
 def extract_text_from_pdf(file_bytes: bytes, filename: Optional[str] = None) -> Tuple[str, List[Dict[str, Any]]]:
-    """
-    Extracts text from PDF bytes.
-    Returns (full_text, pages_data) where pages_data is list of {page_num, text}.
-    If pages have no text layer, triggers OCR provider.
-    """
+    """Load PDF pages and preserve page/source metadata; OCR scanned pages if possible."""
+    pages_data: List[Dict[str, Any]] = []
     try:
-        reader = PdfReader(io.BytesIO(file_bytes))
-        full_text_parts = []
-        pages_data = []
-        ocr_provider = get_ocr_provider()
-
-        for idx, page in enumerate(reader.pages, start=1):
-            page_text = (page.extract_text() or "").strip()
-            if not page_text:
-                page_text = ocr_provider.extract_text_from_image(file_bytes, filename=f"{filename or 'doc'}_page_{idx}.png")
-            if page_text:
-                full_text_parts.append(f"--- Page {idx} ---\n{page_text}")
-                pages_data.append({"page_number": idx, "text": page_text})
-
-        if full_text_parts:
-            return "\n\n".join(full_text_parts), pages_data
+        with tempfile.NamedTemporaryFile(suffix=".pdf") as pdf_file:
+            pdf_file.write(file_bytes)
+            pdf_file.flush()
+            documents = PyPDFLoader(pdf_file.name).load()
+        for index, document in enumerate(documents, start=1):
+            text = document.page_content.strip()
+            if not text:
+                image_bytes = _render_pdf_page(file_bytes, index - 1)
+                if image_bytes:
+                    text = get_ocr_provider().extract_text_from_image(
+                        image_bytes, filename=f"{filename or 'document'}_page_{index}.png"
+                    ).strip()
+            if text:
+                metadata = dict(document.metadata)
+                metadata.update({"source": filename or metadata.get("source"), "page_number": index})
+                pages_data.append({"page_number": index, "text": text, "metadata": metadata})
     except Exception:
-        pass
+        logger.exception("LangChain PDF loader failed; trying pypdf fallback")
+        try:
+            from pypdf import PdfReader
 
-    # Fallback to UTF-8 decoding or OCR
-    try:
-        text = file_bytes.decode("utf-8")
-        if text.strip():
-            return text, [{"page_number": 1, "text": text}]
-    except Exception:
-        pass
+            reader = PdfReader(io.BytesIO(file_bytes))
+            for index, page in enumerate(reader.pages, start=1):
+                text = (page.extract_text() or "").strip()
+                if text:
+                    pages_data.append({
+                        "page_number": index,
+                        "text": text,
+                        "metadata": {"source": filename, "page_number": index},
+                    })
+        except Exception:
+            logger.exception("pypdf fallback failed")
 
-    ocr_text = get_ocr_provider().extract_text_from_image(file_bytes, filename)
-    return ocr_text, [{"page_number": 1, "text": ocr_text}]
+    if not pages_data and file_bytes:
+        # Existing tests and text fixtures use a printable UTF-8 payload named as a PDF.
+        try:
+            decoded = file_bytes.decode("utf-8")
+            printable_ratio = sum(char.isprintable() or char in "\n\r\t" for char in decoded) / len(decoded)
+            if decoded.strip() and printable_ratio >= 0.95:
+                pages_data = [{
+                    "page_number": 1,
+                    "text": decoded,
+                    "metadata": {"source": filename, "page_number": 1},
+                }]
+        except (UnicodeDecodeError, ZeroDivisionError):
+            pass
 
-
-def extract_text_from_docx(file_bytes: bytes) -> Tuple[str, List[Dict[str, Any]]]:
-    """Extracts text from DOCX document."""
-    doc = docx.Document(io.BytesIO(file_bytes))
-    paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
-    full_text = "\n\n".join(paragraphs)
-    pages_data = [{"page_number": 1, "text": full_text}]
+    full_text = "\n\n".join(
+        f"--- Page {page['page_number']} ---\n{page['text']}" for page in pages_data
+    )
     return full_text, pages_data
 
 
+def _render_pdf_page(file_bytes: bytes, page_index: int) -> Optional[bytes]:
+    """Render one scanned PDF page as PNG for the configured OCR provider."""
+    try:
+        import pypdfium2 as pdfium
+
+        pdf = pdfium.PdfDocument(file_bytes)
+        try:
+            output = io.BytesIO()
+            pdf[page_index].render(scale=2).to_pil().convert("RGB").save(output, format="PNG")
+            return output.getvalue()
+        finally:
+            pdf.close()
+    except Exception:
+        logger.exception("Could not render scanned PDF page %s", page_index + 1)
+        return None
+
+
+def extract_text_from_docx(file_bytes: bytes) -> Tuple[str, List[Dict[str, Any]]]:
+    """Load DOCX text with LangChain and preserve loader metadata."""
+    with tempfile.NamedTemporaryFile(suffix=".docx") as docx_file:
+        docx_file.write(file_bytes)
+        docx_file.flush()
+        documents = Docx2txtLoader(docx_file.name).load()
+    full_text = "\n\n".join(
+        document.page_content.strip() for document in documents if document.page_content.strip()
+    )
+    metadata = dict(documents[0].metadata) if documents else {}
+    pages = [{"page_number": 1, "text": full_text, "metadata": metadata}] if full_text else []
+    return full_text, pages
+
+
 def extract_text_from_raw(file_bytes: bytes, filename: str) -> Tuple[str, List[Dict[str, Any]]]:
-    """Auto-detects file type and extracts full text and page/section breakdowns."""
+    """Use LangChain loaders for PDF, DOCX and text; retain the existing image OCR path."""
     lower_name = filename.lower()
     if lower_name.endswith(".pdf"):
         return extract_text_from_pdf(file_bytes, filename)
-    elif lower_name.endswith(".docx"):
-        return extract_text_from_docx(file_bytes)
-    elif any(lower_name.endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".tiff", ".bmp"]):
-        text = get_ocr_provider().extract_text_from_image(file_bytes, filename)
-        return text, [{"page_number": 1, "text": text}]
-    else:
-        # Assume plain text / UTF-8
-        try:
-            text = file_bytes.decode("utf-8")
-        except UnicodeDecodeError:
-            text = file_bytes.decode("latin-1", errors="replace")
-        return text, [{"page_number": 1, "text": text}]
+    if lower_name.endswith(".docx"):
+        text, pages = extract_text_from_docx(file_bytes)
+        for page in pages:
+            page.setdefault("metadata", {})["source"] = filename
+        return text, pages
+    if lower_name.endswith((".png", ".jpg", ".jpeg", ".tiff", ".bmp")):
+        text = get_ocr_provider().extract_text_from_image(file_bytes, filename).strip()
+        return (text, [{"page_number": 1, "text": text, "metadata": {"source": filename}}]) if text else ("", [])
+
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".txt") as text_file:
+            text_file.write(file_bytes)
+            text_file.flush()
+            documents = TextLoader(text_file.name, encoding="utf-8").load()
+        text = "\n\n".join(document.page_content for document in documents)
+    except UnicodeDecodeError:
+        text = file_bytes.decode("latin-1", errors="replace")
+    return (text, [{"page_number": 1, "text": text, "metadata": {"source": filename}}]) if text.strip() else ("", [])
 
 
 def chunk_text(
     pages_data: List[Dict[str, Any]],
     chunk_size: int = 500,
-    chunk_overlap: int = 50
+    chunk_overlap: int = 50,
 ) -> List[Dict[str, Any]]:
-    """
-    Splits text across pages into overlapping chunks while preserving page numbers.
-    """
-    chunks = []
-    chunk_index = 0
-
-    for page_item in pages_data:
-        page_num = page_item.get("page_number", 1)
-        text = page_item["text"]
-
-        if len(text) <= chunk_size:
-            if text.strip():
-                chunks.append({
-                    "chunk_text": text.strip(),
-                    "page_number": page_num,
-                    "chunk_index": chunk_index,
-                })
-                chunk_index += 1
+    """Split each page independently and retain loader metadata and page mapping."""
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        separators=["\n\n", "\n", ". ", " ", ""],
+        length_function=len,
+        is_separator_regex=False,
+    )
+    chunks: List[Dict[str, Any]] = []
+    for page in pages_data:
+        page_number = page.get("page_number", 1)
+        text = page.get("text", "")
+        if not text.strip():
             continue
-
-        start = 0
-        while start < len(text):
-            end = min(start + chunk_size, len(text))
-            chunk_slice = text[start:end].strip()
-            if chunk_slice:
+        metadata = dict(page.get("metadata") or {})
+        metadata["page_number"] = page_number
+        for document in splitter.create_documents([text], metadatas=[metadata]):
+            cleaned = document.page_content.strip()
+            if cleaned:
                 chunks.append({
-                    "chunk_text": chunk_slice,
-                    "page_number": page_num,
-                    "chunk_index": chunk_index,
+                    "chunk_text": cleaned,
+                    "page_number": page_number,
+                    "chunk_index": len(chunks),
+                    "metadata": document.metadata,
                 })
-                chunk_index += 1
-            start += (chunk_size - chunk_overlap)
-
     return chunks
 
 
@@ -125,59 +167,39 @@ async def process_document_background(
     file_bytes: bytes,
     filename: str,
     user_id: str,
-    user_email: Optional[str] = None
+    user_email: Optional[str] = None,
 ):
-    """
-    Asynchronous background worker for OCR, full-text extraction, chunking, and embedding generation.
-    Catches any parsing error and sets processing_status='failed' with processing_error.
-    """
+    """Extract, split, embed and persist an uploaded document asynchronously."""
     try:
-        logger.info(f"Starting background ingestion for document {doc_id} ({filename})")
+        logger.info("Starting background ingestion for document %s (%s)", doc_id, filename)
         full_text, pages_data = extract_text_from_raw(file_bytes, filename)
-
         if not full_text.strip():
             raise ValueError("No extractable text or content found in document")
 
-        # 1. Update Document with full text
         await db.update_document(doc_id, {
             "full_text": full_text,
             "status": "processing",
-            "processing_error": None
+            "processing_error": None,
         })
+        chunks = chunk_text(pages_data, chunk_size=500, chunk_overlap=50)
+        if not chunks:
+            chunks = [{"chunk_text": full_text[:500], "page_number": 1, "chunk_index": 0}]
+        embeddings = get_embedding_provider().embed_batch([chunk["chunk_text"] for chunk in chunks])
+        if len(embeddings) != len(chunks):
+            raise ValueError("Embedding provider returned a mismatched number of vectors")
 
-        # 2. Generate chunks
-        raw_chunks = chunk_text(pages_data, chunk_size=500, chunk_overlap=50)
-        if not raw_chunks:
-            raw_chunks = [{"chunk_text": full_text[:500], "page_number": 1, "chunk_index": 0}]
-
-        # 3. Batch generate embeddings
-        embedding_provider = get_embedding_provider()
-        texts = [c["chunk_text"] for c in raw_chunks]
-        embeddings = embedding_provider.embed_batch(texts)
-
-        # 4. Prepare chunk records for pure PostgreSQL insertion
-        chunk_records = []
-        for idx, (c, emb) in enumerate(zip(raw_chunks, embeddings)):
-            chunk_records.append({
-                "id": str(uuid.uuid4()),
-                "document_id": doc_id,
-                "workspace_id": workspace_id,
-                "patient_id": patient_id,
-                "chunk_text": c["chunk_text"],
-                "page_number": c["page_number"],
-                "chunk_index": idx,
-                "embedding": emb,
-            })
-
+        chunk_records = [{
+            "id": str(uuid.uuid4()),
+            "document_id": doc_id,
+            "workspace_id": workspace_id,
+            "patient_id": patient_id,
+            "chunk_text": chunk["chunk_text"],
+            "page_number": chunk["page_number"],
+            "chunk_index": index,
+            "embedding": embeddings[index],
+        } for index, chunk in enumerate(chunks)]
         await db.insert_chunks(chunk_records)
-
-        # 5. Mark document as processed
-        await db.update_document(doc_id, {
-            "status": "processed",
-            "processing_error": None
-        })
-
-        # 6. Record audit event
+        await db.update_document(doc_id, {"status": "processed", "processing_error": None})
         await db.log_audit({
             "workspace_id": workspace_id,
             "user_id": user_id,
@@ -186,13 +208,12 @@ async def process_document_background(
             "action": "document.processed",
             "detail": f"Document '{filename}' ({doc_id}) processed into {len(chunk_records)} vector chunks.",
         })
-        logger.info(f"Successfully processed document {doc_id} into {len(chunk_records)} chunks.")
-
-    except Exception as e:
-        logger.error(f"Document ingestion failed for {doc_id}: {e}", exc_info=True)
+        logger.info("Successfully processed document %s into %s chunks", doc_id, len(chunk_records))
+    except Exception as exc:
+        logger.error("Document ingestion failed for %s: %s", doc_id, exc, exc_info=True)
         await db.update_document(doc_id, {
             "status": "failed",
-            "processing_error": f"Text extraction / ingestion error: {str(e)}"
+            "processing_error": f"Text extraction / ingestion error: {str(exc)}",
         })
         await db.log_audit({
             "workspace_id": workspace_id,
@@ -200,5 +221,5 @@ async def process_document_background(
             "user_email": user_email,
             "patient_id": patient_id,
             "action": "document.failed",
-            "detail": f"Failed to ingest document '{filename}': {str(e)}",
+            "detail": f"Failed to ingest document '{filename}': {str(exc)}",
         })

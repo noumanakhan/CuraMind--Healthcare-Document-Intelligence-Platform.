@@ -90,7 +90,8 @@ export const ENCOUNTERS = {
     { id: 'enc-p2-1', type: 'Outpatient', status: 'completed', date: '08 Jun 2025', reason: 'Cardiology review', attending: 'Dr. N. Fatima', location: 'Cardiology Clinic' },
   ],
   p3: [
-    { id: 'enc-p3-1', type: 'Outpatient', status: 'completed', date: '30 Sep 2026', reason: 'GI referral follow-up', attending: 'Dr. K. Farooq', location: 'Outpatient' },
+    { id: 'enc-p3-2', type: 'Outpatient', status: 'upcoming', date: '30 Sep 2026', reason: 'GI referral follow-up', attending: 'Dr. K. Farooq', location: 'Gastroenterology Clinic' },
+    { id: 'enc-p3-1', type: 'Inpatient', status: 'completed', date: '22 Sep 2026', reason: 'Acute epigastric pain / Functional dyspepsia', attending: 'Dr. Faisal S.', location: 'Internal Medicine Ward' },
   ],
   p4: [
     { id: 'enc-p4-2', type: 'Inpatient · ICU', status: 'in-progress', date: '25 Sep 2026', reason: 'Post-operative monitoring', attending: 'Dr. N. Fatima', location: 'ICU · Bed 2' },
@@ -107,7 +108,8 @@ export const PATIENT_PROBLEMS = {
     { id: 'prob-p2-1', name: 'Stable angina · NYHA class II', status: 'active', recorded: '26 Sep 2026', source: 'Cardiology consult note', note: 'Extracted diagnosis; verify against the signed source record.' },
   ],
   p3: [
-    { id: 'prob-p3-1', name: 'Abdominal pain', status: 'monitoring', recorded: '30 Sep 2026', source: 'Referral follow-up', note: 'Follow-up with gastroenterology was recommended.' },
+    { id: 'prob-p3-1', name: 'Functional dyspepsia', status: 'resolved', recorded: '23 Sep 2026', source: 'Discharge summary', note: 'Acute epigastric symptoms stabilized on omeprazole therapy.' },
+    { id: 'prob-p3-2', name: 'Recurrent epigastric discomfort', status: 'monitoring', recorded: '24 Sep 2026', source: 'Referral letter', note: 'Referred to Dr. K. Farooq (Gastroenterology) to rule out structural GI pathology / celiac disease.' },
   ],
   p4: [
     { id: 'prob-p4-1', name: 'Post-operative monitoring', status: 'active', recorded: '27 Sep 2026', source: 'ICU progress note', note: 'Documented post-operative status; see source note for context.' },
@@ -117,12 +119,12 @@ export const PATIENT_PROBLEMS = {
 // Structured allergy records retain verification state and source instead of relying on a string list.
 export const ALLERGY_RECORDS = {
   p1: [
-    { id: 'allergy-p1-1', substance: 'Penicillin', reaction: 'Not documented', severity: 'Unknown', status: 'active', verification: 'Needs verification', source: 'Intake form' },
+    { id: 'allergy-p1-1', substance: 'Penicillin', reaction: 'Rash and facial swelling after amoxicillin (6 yrs ago)', severity: 'Moderate', status: 'active', verification: 'Patient reported', source: 'Intake form' },
   ],
-  p2: [{ id: 'allergy-p2-none', substance: 'No known allergies reported', reaction: '—', severity: '—', status: 'none-reported', verification: 'Not confirmed', source: 'Patient chart' }],
+  p2: [{ id: 'allergy-p2-none', substance: 'No known allergies reported', reaction: '—', severity: '—', status: 'none-reported', verification: 'Not confirmed', source: 'Cardiology consult note' }],
   p3: [
-    { id: 'allergy-p3-1', substance: 'Sulfa drugs', reaction: 'Not documented', severity: 'Unknown', status: 'active', verification: 'Unverified', source: 'Patient chart' },
-    { id: 'allergy-p3-2', substance: 'Latex', reaction: 'Not documented', severity: 'Unknown', status: 'active', verification: 'Unverified', source: 'Patient chart' },
+    { id: 'allergy-p3-1', substance: 'Sulfa drugs', reaction: 'Urticaria and nausea', severity: 'Moderate', status: 'active', verification: 'Verified', source: 'Discharge summary' },
+    { id: 'allergy-p3-2', substance: 'Latex', reaction: 'Contact dermatitis', severity: 'Mild', status: 'active', verification: 'Verified', source: 'Discharge summary' },
   ],
   p4: [{ id: 'allergy-p4-none', substance: 'No known allergies reported', reaction: '—', severity: '—', status: 'none-reported', verification: 'Not confirmed', source: 'Patient chart' }],
 }
@@ -137,7 +139,10 @@ export const IMMUNIZATIONS = {
     { vaccine: 'Influenza', date: '15 Nov 2025' },
     { vaccine: 'Pneumococcal', date: '20 Mar 2023' },
   ],
-  p3: [{ vaccine: 'HPV (3rd dose)', date: '08 Feb 2022' }],
+  p3: [
+    { vaccine: 'HPV (3rd dose)', date: '08 Feb 2022' },
+    { vaccine: 'Hepatitis B series', date: '14 May 2023' },
+  ],
   p4: [{ vaccine: 'Tetanus (Td)', date: '19 Jun 2025' }],
 }
 
@@ -161,7 +166,11 @@ export const APPOINTMENTS = {
     { type: 'Cardiac rehabilitation assessment', with: 'Dr. N. Fatima', date: '14 Oct 2026', time: '11:00 AM', status: 'upcoming' },
     { type: 'Cardiology consult', with: 'Dr. N. Fatima', date: '26 Sep 2026', time: '11:15 AM', status: 'completed' },
   ],
-  p3: [{ type: 'GI referral follow-up', with: 'Dr. K. Farooq', date: '30 Sep 2026', time: '04:00 PM', status: 'upcoming' }],
+  p3: [
+    { type: 'GI referral follow-up', with: 'Dr. K. Farooq', date: '30 Sep 2026', time: '04:00 PM', status: 'upcoming' },
+    { type: 'Upper Endoscopy & Celiac Panel', with: 'Dr. K. Farooq', date: '07 Oct 2026', time: '10:00 AM', status: 'upcoming' },
+    { type: 'Discharge consultation', with: 'Dr. Faisal S.', date: '23 Sep 2026', time: '11:00 AM', status: 'completed' },
+  ],
   p4: [
     { type: 'Critical care follow-up', with: 'Dr. N. Fatima', date: '08 Oct 2026', time: '08:30 AM', status: 'upcoming' },
     { type: 'ICU rounds', with: 'Dr. N. Fatima', date: '27 Sep 2026', time: '08:00 AM', status: 'completed' },
@@ -188,8 +197,8 @@ export const PATIENT_DOCUMENTS = {
         { label: 'Patient name', value: 'Amina Yusuf', confidence: 0.98, flagged: false },
         { label: 'Date of birth', value: '14 Mar 1988', confidence: 0.95, flagged: false },
         { label: 'Reason for visit', value: 'Persistent abdominal pain, 3 days', confidence: 0.81, flagged: false },
-        { label: 'Known allergies', value: 'Penicillin', confidence: 0.62, flagged: true },
-        { label: 'Emergency contact', value: 'Zainab Yusuf — 0300•••••12', confidence: 0.9, flagged: false },
+        { label: 'Known allergies', value: 'Penicillin (rash/facial swelling from amoxicillin)', confidence: 0.92, flagged: true },
+        { label: 'Emergency contact', value: 'Zainab Yusuf — 0300-7654321', confidence: 0.95, flagged: false },
       ],
     },
     {
@@ -220,7 +229,33 @@ export const PATIENT_DOCUMENTS = {
       ],
     },
   ],
-  p3: [],
+  p3: [
+    {
+      id: 'd5',
+      name: 'discharge-summary-layla-ahmed.pdf',
+      type: 'Discharge summary',
+      date: '23 Sep 2026',
+      status: 'processed',
+      fields: [
+        { label: 'Primary diagnosis', value: 'Functional dyspepsia (acute epigastric pain resolved)', confidence: 0.94, flagged: false },
+        { label: 'Discharge medication', value: 'Omeprazole 20mg once daily', confidence: 0.96, flagged: false },
+        { label: 'Documented allergies', value: 'Sulfa drugs, Latex', confidence: 0.98, flagged: true },
+        { label: 'Follow-up', value: 'Gastroenterology with Dr. K. Farooq', confidence: 0.91, flagged: false },
+      ],
+    },
+    {
+      id: 'd6',
+      name: 'referral-letter-layla-ahmed.pdf',
+      type: 'Referral letter',
+      date: '24 Sep 2026',
+      status: 'processed',
+      fields: [
+        { label: 'Referred to', value: 'Dr. K. Farooq, Gastroenterology', confidence: 0.97, flagged: false },
+        { label: 'Reason for referral', value: 'Recurrent epigastric discomfort, rule out structural GI pathology', confidence: 0.92, flagged: false },
+        { label: 'Family history', value: 'Maternal aunt with celiac disease', confidence: 0.88, flagged: true },
+      ],
+    },
+  ],
   p4: [
     {
       id: 'd4',
@@ -274,7 +309,27 @@ export const LAB_TRENDS = {
       ],
     },
   ],
-  p3: [],
+  p3: [
+    {
+      test: 'Hemoglobin',
+      unit: 'g/dL',
+      range: [12.0, 15.5],
+      points: [
+        { date: 'Sep 15', value: 13.2 },
+        { date: 'Sep 22', value: 12.9 },
+        { date: 'Sep 23', value: 12.8 },
+      ],
+    },
+    {
+      test: 'Serum Ferritin',
+      unit: 'ng/mL',
+      range: [15, 150],
+      points: [
+        { date: 'Sep 15', value: 48 },
+        { date: 'Sep 22', value: 44 },
+      ],
+    },
+  ],
   p4: [
     {
       test: 'Lactate',
@@ -297,9 +352,11 @@ export const MEDICATIONS = {
   p2: [
     { name: 'Atorvastatin 40mg', dose: 'Nightly', flag: null, note: null },
     { name: 'Aspirin 75mg', dose: 'Daily', flag: null, note: null },
-    { name: 'Metoprolol 50mg', dose: '2x daily', flag: 'dosage', note: 'Dose is above the typical starting range for this patient\u2019s renal function — confirm with prescriber.' },
+    { name: 'Metoprolol 50mg', dose: '2x daily', flag: 'dosage', note: 'Dose is above the typical starting range for this patient’s renal function — confirm with prescriber.' },
   ],
-  p3: [],
+  p3: [
+    { name: 'Omeprazole 20mg', dose: 'Once daily before breakfast', flag: null, note: 'Prescribed at discharge for functional dyspepsia (4-week course pending GI review).' },
+  ],
   p4: [
     { name: 'Piperacillin-Tazobactam', dose: '4.5g IV, 3x daily', flag: null, note: null },
     { name: 'Norepinephrine infusion', dose: 'Titrated', flag: null, note: null },
@@ -316,6 +373,14 @@ export const DISCHARGE_DRAFTS = {
       { text: 'Patient is discharged in stable condition with outpatient cardiology follow-up scheduled in 2 weeks.', cite: 'cardiology-consult-note.pdf · Page 2' },
     ],
   },
+  p3: {
+    status: 'finalized',
+    paragraphs: [
+      { text: 'Ms. Layla Ahmed was admitted with acute epigastric pain, diagnosed as functional dyspepsia with symptom resolution on PPI therapy.', cite: 'discharge-summary-layla-ahmed.pdf · Page 1' },
+      { text: 'Discharged on Omeprazole 20mg once daily for 4 weeks. Known allergies to Sulfa drugs and Latex were verified and noted.', cite: 'discharge-summary-layla-ahmed.pdf · Page 1' },
+      { text: 'Formal referral sent to Dr. K. Farooq (Gastroenterology) for outpatient follow-up and evaluation of family celiac history.', cite: 'referral-letter-layla-ahmed.pdf · Page 1' },
+    ],
+  },
 }
 
 export const AUDIT_LOG = {
@@ -330,7 +395,11 @@ export const AUDIT_LOG = {
     { who: 'System (AI extraction)', action: 'Drafted discharge summary from 3 source documents', when: '1 hour ago' },
     { who: 'Pharmacist A. Khan', action: 'Flagged metoprolol dosage for review', when: '2 hours ago' },
   ],
-  p3: [{ who: 'Dr. Faisal S.', action: 'Closed patient episode', when: '1 day ago' }],
+  p3: [
+    { who: 'System (AI extraction)', action: 'Ingested and indexed referral-letter-layla-ahmed.pdf', when: '2 hours ago' },
+    { who: 'System (AI extraction)', action: 'Extracted 4 fields from discharge-summary-layla-ahmed.pdf', when: '1 day ago' },
+    { who: 'Dr. Faisal S.', action: 'Signed discharge summary & closed episode', when: '1 day ago' },
+  ],
   p4: [
     { who: 'System (AI extraction)', action: 'Extracted vitals summary from ICU progress note', when: '10 min ago' },
     { who: 'Dr. N. Fatima', action: 'Viewed patient record', when: '15 min ago' },

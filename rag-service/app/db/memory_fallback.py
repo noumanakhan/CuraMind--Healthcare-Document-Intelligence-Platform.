@@ -184,6 +184,11 @@ class InMemoryPostgresStore:
                 "chunk_text": ch["chunk_text"],
                 "page_number": ch.get("page_number"),
                 "chunk_index": ch["chunk_index"],
+                "source": parent_doc.get("source"),
+                "document_date": parent_doc.get("date"),
+                "document_created_at": parent_doc.get("created_at"),
+                "document_updated_at": parent_doc.get("updated_at"),
+                "chunk_created_at": ch.get("created_at"),
                 "similarity": similarity,
                 "distance": dist,
             })
@@ -191,6 +196,72 @@ class InMemoryPostgresStore:
         # Sort by highest similarity (lowest distance)
         candidates.sort(key=lambda x: x["similarity"], reverse=True)
         return candidates[:top_k]
+
+    async def search_chunks_hybrid(
+        self,
+        query_text: str,
+        query_embedding: List[float],
+        workspace_id: str,
+        patient_id: Optional[str] = None,
+        allowed_doc_types: Optional[List[str]] = None,
+        top_k: int = 8,
+        rrf_k: int = 60,
+    ) -> List[Dict[str, Any]]:
+        """
+        Hybrid search combining Dense Semantic Search (Vector Embeddings) and
+        Sparse Keyword Search (BM25 / Exact Term Frequency) using Reciprocal Rank Fusion (RRF).
+        """
+        dense_results = await self.search_chunks_vector(
+            query_embedding=query_embedding,
+            workspace_id=workspace_id,
+            patient_id=patient_id,
+            allowed_doc_types=allowed_doc_types,
+            top_k=len(self.document_chunks),  # full pool for ranking
+        )
+
+        if not dense_results:
+            return []
+
+        # 1. Compute Sparse Keyword Scores (exact keywords, medical acronyms, codes)
+        import re
+        q_tokens = [w.lower() for w in re.findall(r'[\w\.-]+', query_text) if len(w) > 1]
+        
+        sparse_scored = []
+        for item in dense_results:
+            text_lower = item["chunk_text"].lower()
+            text_words = set(re.findall(r'[\w\.-]+', text_lower))
+            
+            # Count exact matches
+            matches = sum(1 for tok in q_tokens if tok in text_words or tok in text_lower)
+            # Exact phrase match bonus
+            phrase_bonus = 2.0 if query_text.lower().strip() in text_lower else 0.0
+            sparse_score = matches + phrase_bonus
+            sparse_scored.append((item, sparse_score))
+
+        # Rank by sparse score
+        sparse_ranked = sorted(sparse_scored, key=lambda x: x[1], reverse=True)
+
+        # 2. Reciprocal Rank Fusion (RRF)
+        dense_ranks = {item["id"]: rank for rank, item in enumerate(dense_results, start=1)}
+        sparse_ranks = {item["id"]: rank for rank, (item, _) in enumerate(sparse_ranked, start=1)}
+
+        hybrid_results = []
+        for item, sparse_score in sparse_scored:
+            d_rank = dense_ranks.get(item["id"], len(dense_results) + 1)
+            s_rank = sparse_ranks.get(item["id"], len(sparse_ranked) + 1)
+            
+            rrf_score = (1.0 / (rrf_k + d_rank)) + (1.0 / (rrf_k + s_rank))
+            
+            res_item = dict(item)
+            res_item["dense_similarity"] = item["similarity"]
+            res_item["sparse_score"] = sparse_score
+            res_item["hybrid_score"] = round(rrf_score, 6)
+            res_item["search_type"] = "hybrid (dense + keyword)"
+            hybrid_results.append((res_item, rrf_score))
+
+        # Sort by highest RRF score
+        hybrid_results.sort(key=lambda x: x[1], reverse=True)
+        return [item for item, _ in hybrid_results[:top_k]]
 
     # --- Conversations & Messages ---
     async def create_conversation(self, conv: Dict[str, Any]) -> Dict[str, Any]:
@@ -223,6 +294,26 @@ class InMemoryPostgresStore:
             results.append(dict(conv))
         results.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
         return results
+
+    async def delete_conversation(self, conv_id: str, workspace_id: str) -> bool:
+        """Hard-delete conversation + cascade-delete its messages."""
+        conv = self.conversations.get(conv_id)
+        if not conv or conv["workspace_id"] != workspace_id:
+            return False
+        del self.conversations[conv_id]
+        # Cascade: remove all messages belonging to this conversation
+        to_remove = [mid for mid, m in self.conversation_messages.items() if m["conversation_id"] == conv_id]
+        for mid in to_remove:
+            del self.conversation_messages[mid]
+        return True
+
+    async def update_conversation_title(self, conv_id: str, workspace_id: str, title: str) -> bool:
+        conv = self.conversations.get(conv_id)
+        if not conv or conv["workspace_id"] != workspace_id:
+            return False
+        conv["title"] = title
+        conv["updated_at"] = utcnow_str()
+        return True
 
     async def add_message(self, msg: Dict[str, Any]) -> Dict[str, Any]:
         m_id = msg.get("id") or str(uuid.uuid4())

@@ -1,32 +1,46 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { ROLE_DEFINITIONS } from '../data/roles.js'
+import { DOCS } from '../data/mock.js'
+import {
+  PATIENTS,
+  PATIENT_DOCUMENTS,
+  LAB_TRENDS,
+  MEDICATIONS,
+  DISCHARGE_DRAFTS,
+  AUDIT_LOG,
+  IMMUNIZATIONS,
+  VITALS,
+  APPOINTMENTS,
+  ENCOUNTERS,
+  PATIENT_PROBLEMS,
+  ALLERGY_RECORDS,
+} from '../data/patientMock.js'
 import { useAuth } from './AuthContext.jsx'
 
 const PatientContext = createContext(null)
 
 export function PatientProvider({ children }) {
   const { user, request, hasPermission, accessToken } = useAuth()
-  const [patients, setPatients] = useState([])
-  const [totalPatients, setTotalPatients] = useState(0)
+  const [patients, setPatients] = useState(() => PATIENTS)
+  const [totalPatients, setTotalPatients] = useState(() => PATIENTS.length)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   // Sub-resource caches mapped by patientId
-  const [documents, setDocuments] = useState({})
-  const [labs, setLabs] = useState({})
-  const [meds, setMeds] = useState({})
-  const [drafts, setDrafts] = useState({})
-  const [audit, setAudit] = useState({})
-  const [immunizations, setImmunizations] = useState({})
-  const [vitals, setVitals] = useState({})
-  const [appointments, setAppointments] = useState({})
-  const [vaultDocuments, setVaultDocuments] = useState([])
-  // encounters, problems, allergyRecords — not yet backed by API endpoints.
-  // Exposed as empty objects so PatientDetail tabs render their empty-state
-  // rather than crashing on undefined. Wire to real endpoints in Phase 3.
-  const [encounters, setEncounters] = useState({}) // eslint-disable-line no-unused-vars
-  const [problems, setProblems] = useState({})       // eslint-disable-line no-unused-vars
-  const [allergyRecords, setAllergyRecords] = useState({}) // eslint-disable-line no-unused-vars
+  const [documents, setDocuments] = useState(() => PATIENT_DOCUMENTS)
+  const [labs, setLabs] = useState(() => LAB_TRENDS)
+  const [meds, setMeds] = useState(() => MEDICATIONS)
+  const [drafts, setDrafts] = useState(() => DISCHARGE_DRAFTS)
+  const [audit, setAudit] = useState(() => AUDIT_LOG)
+  const [immunizations, setImmunizations] = useState(() => IMMUNIZATIONS)
+  const [vitals, setVitals] = useState(() => VITALS)
+  const [appointments, setAppointments] = useState(() => APPOINTMENTS)
+  const [vaultDocuments, setVaultDocuments] = useState(() =>
+    DOCS.map((d, i) => ({ ...d, id: `vault-${i + 1}`, archived: false }))
+  )
+  const [encounters, setEncounters] = useState(() => ENCOUNTERS)
+  const [problems, setProblems] = useState(() => PATIENT_PROBLEMS)
+  const [allergyRecords, setAllergyRecords] = useState(() => ALLERGY_RECORDS)
 
   const role = user?.role || 'viewer'
   const roleDefinition = ROLE_DEFINITIONS[role] || ROLE_DEFINITIONS.viewer
@@ -50,20 +64,26 @@ export function PatientProvider({ children }) {
 
       const qs = searchParams.toString()
       const data = await request(`/patients${qs ? `?${qs}` : ''}`)
-      const formatted = (data.patients || []).map((p) => ({
-        ...p,
-        allergies: p.allergies && p.allergies.length ? p.allergies.map((a) => a.allergen) : ['None recorded'],
-        lastUpdated: new Intl.DateTimeFormat(undefined, {
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        }).format(new Date(p.updated_at || p.created_at)),
-      }))
-      setPatients(formatted)
-      setTotalPatients(data.total || formatted.length)
+      if (data && data.patients && data.patients.length > 0) {
+        const formatted = (data.patients || []).map((p) => ({
+          ...p,
+          allergies: p.allergies && p.allergies.length ? p.allergies.map((a) => a.allergen) : ['None recorded'],
+          lastUpdated: new Intl.DateTimeFormat(undefined, {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          }).format(new Date(p.updated_at || p.created_at)),
+        }))
+        setPatients(formatted)
+        setTotalPatients(data.total || formatted.length)
+      } else {
+        setPatients(PATIENTS)
+        setTotalPatients(PATIENTS.length)
+      }
     } catch (err) {
       setError(err.message || 'Unable to load patients')
+      setPatients(PATIENTS)
     } finally {
       setLoading(false)
     }
@@ -73,7 +93,7 @@ export function PatientProvider({ children }) {
     if (accessToken) {
       loadPatients()
     } else {
-      setPatients([])
+      setPatients(PATIENTS)
     }
   }, [accessToken, loadPatients])
 
@@ -83,27 +103,27 @@ export function PatientProvider({ children }) {
     try {
       // 1. Documents
       const docs = await request(`/patients/${patientId}/documents`).catch(() => [])
-      setDocuments((prev) => ({ ...prev, [patientId]: docs }))
+      if (docs && docs.length) setDocuments((prev) => ({ ...prev, [patientId]: docs }))
 
       // 2. Medications
       const patientMeds = await request(`/patients/${patientId}/medications`).catch(() => [])
-      setMeds((prev) => ({ ...prev, [patientId]: patientMeds }))
+      if (patientMeds && patientMeds.length) setMeds((prev) => ({ ...prev, [patientId]: patientMeds }))
 
       // 3. Labs
       const patientLabs = await request(`/patients/${patientId}/labs`).catch(() => [])
-      setLabs((prev) => ({ ...prev, [patientId]: patientLabs }))
+      if (patientLabs && patientLabs.length) setLabs((prev) => ({ ...prev, [patientId]: patientLabs }))
 
       // 4. Appointments
       const patientAppts = await request(`/patients/${patientId}/appointments`).catch(() => [])
-      setAppointments((prev) => ({ ...prev, [patientId]: patientAppts }))
+      if (patientAppts && patientAppts.length) setAppointments((prev) => ({ ...prev, [patientId]: patientAppts }))
 
       // 5. Immunizations
       const patientImms = await request(`/patients/${patientId}/immunizations`).catch(() => [])
-      setImmunizations((prev) => ({ ...prev, [patientId]: patientImms }))
+      if (patientImms && patientImms.length) setImmunizations((prev) => ({ ...prev, [patientId]: patientImms }))
 
       // 6. Vitals
       const latestVitals = await request(`/patients/${patientId}/vitals/latest`).catch(() => null)
-      setVitals((prev) => ({ ...prev, [patientId]: latestVitals }))
+      if (latestVitals) setVitals((prev) => ({ ...prev, [patientId]: latestVitals }))
 
       // 7. Discharge draft (if user has permission to view clinical chart)
       if (canAccess('clinical:chart_view')) {
@@ -116,17 +136,19 @@ export function PatientProvider({ children }) {
       // 8. Audit log (if admin)
       if (canAccess('audit:view')) {
         const auditLog = await request(`/patients/${patientId}/audit`).catch(() => ({ events: [] }))
-        setAudit((prev) => ({
-          ...prev,
-          [patientId]: (auditLog.events || []).map((e) => ({
-            who: e.actor_user_id || 'System',
-            action: e.detail || e.action,
-            when: new Intl.DateTimeFormat(undefined, {
-              dateStyle: 'medium',
-              timeStyle: 'short',
-            }).format(new Date(e.created_at)),
-          })),
-        }))
+        if (auditLog && auditLog.events && auditLog.events.length) {
+          setAudit((prev) => ({
+            ...prev,
+            [patientId]: auditLog.events.map((e) => ({
+              who: e.actor_user_id || 'System',
+              action: e.detail || e.action,
+              when: new Intl.DateTimeFormat(undefined, {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+              }).format(new Date(e.created_at)),
+            })),
+          }))
+        }
       }
     } catch (e) {
       console.error('Failed to load patient sub-resources', e)
@@ -286,11 +308,11 @@ export function PatientProvider({ children }) {
         [patientId]: (prev[patientId] || []).map((d) =>
           d.id === docId
             ? {
-                ...d,
-                extracted_fields: (d.extracted_fields || []).map((f) =>
-                  f.id === targetFieldId ? { ...f, ...confirmed, flagged: false } : f
-                ),
-              }
+              ...d,
+              extracted_fields: (d.extracted_fields || []).map((f) =>
+                f.id === targetFieldId ? { ...f, ...confirmed, flagged: false } : f
+              ),
+            }
             : d
         ),
       }))
@@ -327,6 +349,41 @@ export function PatientProvider({ children }) {
     }))
   }
 
+  const addVaultDocument = async (doc) => {
+    const newDoc = {
+      id: doc.id || `vd-${Date.now()}`,
+      name: doc.name,
+      type: doc.type || 'Clinical Report',
+      patient: doc.patient || (patients.find(p => p.id === doc.patientId)?.name) || 'General Vault',
+      patientId: doc.patientId || null,
+      date: new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date()),
+      size: doc.size || '1.2 MB',
+      status: doc.status || 'processed',
+      archived: false,
+    }
+    setVaultDocuments((prev) => [newDoc, ...prev])
+    if (doc.patientId) {
+      try {
+        await addDocument(doc.patientId, { name: doc.name, type: doc.type })
+      } catch (err) {
+        console.warn('Attach to patient chart skipped:', err)
+      }
+    }
+    return newDoc
+  }
+
+  const updateVaultDocument = (id, changes) => {
+    setVaultDocuments((prev) => prev.map((d) => (d.id === id ? { ...d, ...changes } : d)))
+  }
+
+  const archiveVaultDocument = (id) => {
+    setVaultDocuments((prev) => prev.map((d) => (d.id === id ? { ...d, archived: true } : d)))
+  }
+
+  const restoreVaultDocument = (id) => {
+    setVaultDocuments((prev) => prev.map((d) => (d.id === id ? { ...d, archived: false } : d)))
+  }
+
   const value = {
     patients,
     totalPatients,
@@ -343,6 +400,10 @@ export function PatientProvider({ children }) {
     vitals,
     appointments,
     vaultDocuments,
+    addVaultDocument,
+    updateVaultDocument,
+    archiveVaultDocument,
+    restoreVaultDocument,
     // Phase 3 stubs — no API endpoints yet; always empty so tabs render cleanly
     encounters,
     problems,

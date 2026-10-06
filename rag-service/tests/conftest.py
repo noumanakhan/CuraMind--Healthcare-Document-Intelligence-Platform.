@@ -32,9 +32,15 @@ def auth_header(token: str) -> dict:
 
 @pytest.fixture(autouse=True)
 def reset_db_store():
+    orig_llm = settings.LLM_PROVIDER
+    orig_emb = settings.EMBEDDING_PROVIDER
+    settings.LLM_PROVIDER = "mock"
+    settings.EMBEDDING_PROVIDER = "mock"
     in_memory_store.reset()
     yield
     in_memory_store.reset()
+    settings.LLM_PROVIDER = orig_llm
+    settings.EMBEDDING_PROVIDER = orig_emb
 
 
 @pytest.fixture

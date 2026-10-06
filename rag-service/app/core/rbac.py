@@ -7,6 +7,7 @@ class AuthenticatedUser(BaseModel):
     workspace_id: str
     role: str
     email: Optional[str] = None
+    raw_token: Optional[str] = None  # Raw JWT — used by workspace intelligence layer to call backend API
 
 
 ROLE_PERMISSIONS: Dict[str, FrozenSet[str]] = {

@@ -1,20 +1,28 @@
 import json
 import logging
 from typing import Any, Dict, List, Optional
-import asyncpg
+
+try:
+    import asyncpg
+except ImportError:
+    asyncpg = None
+
 from app.config import settings
 from app.db.memory_fallback import in_memory_store
 
 logger = logging.getLogger("rag_service.db")
 
-_pool: Optional[asyncpg.Pool] = None
+_pool: Optional[Any] = None
 _using_postgres: bool = False
 
 
-async def get_db_pool() -> Optional[asyncpg.Pool]:
+async def get_db_pool() -> Optional[Any]:
     global _pool, _using_postgres
     if _pool is not None:
         return _pool
+    if asyncpg is None:
+        _using_postgres = False
+        return None
 
     dsn = settings.get_postgres_dsn
     try:
@@ -226,6 +234,11 @@ async def search_chunks_vector(
         c.chunk_text,
         c.page_number,
         c.chunk_index,
+        d.source AS source,
+        d.date AS document_date,
+        d.created_at AS document_created_at,
+        d.updated_at AS document_updated_at,
+        c.created_at AS chunk_created_at,
         1 - (c.embedding <=> $2::vector) AS similarity,
         (c.embedding <=> $2::vector) AS distance
     FROM document_chunks c
@@ -238,6 +251,107 @@ async def search_chunks_vector(
     async with _pool.acquire() as conn:
         rows = await conn.fetch(sql, *params)
         return [dict(r) for r in rows]
+
+
+async def search_chunks_hybrid(
+    query_text: str,
+    query_embedding: List[float],
+    workspace_id: str,
+    patient_id: Optional[str] = None,
+    allowed_doc_types: Optional[List[str]] = None,
+    top_k: int = 8,
+    rrf_k: int = 60,
+) -> List[Dict[str, Any]]:
+    if not await is_postgres_active():
+        return await in_memory_store.search_chunks_hybrid(
+            query_text=query_text,
+            query_embedding=query_embedding,
+            workspace_id=workspace_id,
+            patient_id=patient_id,
+            allowed_doc_types=allowed_doc_types,
+            top_k=top_k,
+            rrf_k=rrf_k,
+        )
+
+    emb_str = f"[{','.join(map(str, query_embedding))}]"
+    params: List[Any] = [workspace_id, emb_str, query_text]
+    where_clauses = ["c.workspace_id = $1", "d.is_deleted = FALSE"]
+
+    if patient_id:
+        params.append(patient_id)
+        where_clauses.append(f"c.patient_id = ${len(params)}")
+
+    if allowed_doc_types is not None:
+        params.append(allowed_doc_types)
+        where_clauses.append(f"d.type = ANY(${len(params)})")
+
+    params.append(top_k)
+    limit_clause = f"${len(params)}"
+
+    sql = f"""
+    WITH dense_search AS (
+        SELECT 
+            c.id,
+            ROW_NUMBER() OVER (ORDER BY c.embedding <=> $2::vector ASC) AS dense_rank,
+            1 - (c.embedding <=> $2::vector) AS dense_similarity
+        FROM document_chunks c
+        JOIN documents d ON c.document_id = d.id
+        WHERE {' AND '.join(where_clauses)}
+        LIMIT 50
+    ),
+    sparse_search AS (
+        SELECT 
+            c.id,
+            ROW_NUMBER() OVER (ORDER BY ts_rank_cd(to_tsvector('english', c.chunk_text), plainto_tsquery('english', $3)) DESC) AS sparse_rank,
+            ts_rank_cd(to_tsvector('english', c.chunk_text), plainto_tsquery('english', $3)) AS sparse_score
+        FROM document_chunks c
+        JOIN documents d ON c.document_id = d.id
+        WHERE {' AND '.join(where_clauses)}
+          AND (to_tsvector('english', c.chunk_text) @@ plainto_tsquery('english', $3) OR c.chunk_text ILIKE '%' || $3 || '%')
+        LIMIT 50
+    )
+    SELECT 
+        c.id,
+        c.document_id,
+        d.name AS document_name,
+        d.type AS document_type,
+        c.workspace_id,
+        c.patient_id,
+        c.chunk_text,
+        c.page_number,
+        c.chunk_index,
+        d.source AS source,
+        d.date AS document_date,
+        d.created_at AS document_created_at,
+        d.updated_at AS document_updated_at,
+        c.created_at AS chunk_created_at,
+        COALESCE(ds.dense_similarity, 0.0) AS dense_similarity,
+        COALESCE(ss.sparse_score, 0.0) AS sparse_score,
+        (COALESCE(1.0 / ({rrf_k} + ds.dense_rank), 0.0) + COALESCE(1.0 / ({rrf_k} + ss.sparse_rank), 0.0)) AS hybrid_score,
+        COALESCE(ds.dense_similarity, 0.0) AS similarity
+    FROM document_chunks c
+    JOIN documents d ON c.document_id = d.id
+    LEFT JOIN dense_search ds ON c.id = ds.id
+    LEFT JOIN sparse_search ss ON c.id = ss.id
+    WHERE (ds.id IS NOT NULL OR ss.id IS NOT NULL)
+      AND {' AND '.join(where_clauses)}
+    ORDER BY hybrid_score DESC
+    LIMIT {limit_clause}
+    """
+
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(sql, *params)
+        results = [dict(r) for r in rows]
+        if not results:
+            # Fallback to vector search if no FTS query matched
+            return await search_chunks_vector(
+                query_embedding=query_embedding,
+                workspace_id=workspace_id,
+                patient_id=patient_id,
+                allowed_doc_types=allowed_doc_types,
+                top_k=top_k
+            )
+        return results
 
 
 # --- Conversations & Messages ---
@@ -329,6 +443,37 @@ async def list_messages(conversation_id: str) -> List[Dict[str, Any]]:
                 d["citations"] = json.loads(d["citations"])
             results.append(d)
         return results
+
+
+async def delete_conversation(conv_id: str, workspace_id: str) -> bool:
+    """
+    Hard-delete a conversation and all its messages (ON DELETE CASCADE).
+    Returns True if a row was deleted, False if not found.
+    """
+    if not await is_postgres_active():
+        return await in_memory_store.delete_conversation(conv_id, workspace_id)
+
+    async with _pool.acquire() as conn:
+        res = await conn.execute(
+            "DELETE FROM conversations WHERE id = $1 AND workspace_id = $2",
+            conv_id, workspace_id
+        )
+        return res != "DELETE 0"
+
+
+async def update_conversation_title(conv_id: str, workspace_id: str, title: str) -> bool:
+    """
+    Update the title of a conversation with workspace tenancy isolation.
+    """
+    if not await is_postgres_active():
+        return await in_memory_store.update_conversation_title(conv_id, workspace_id, title)
+
+    async with _pool.acquire() as conn:
+        res = await conn.execute(
+            "UPDATE conversations SET title = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND workspace_id = $3",
+            title, conv_id, workspace_id
+        )
+        return res != "UPDATE 0"
 
 
 # --- Audit Logging ---

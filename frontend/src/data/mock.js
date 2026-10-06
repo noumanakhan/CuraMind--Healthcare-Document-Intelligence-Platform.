@@ -27,24 +27,31 @@ export const DOCS = [
   { name: 'intake-form-amina-yusuf.pdf', type: 'Intake form', status: 'needs-review', date: '25 Sep 2026', size: '340 KB', patient: 'Amina Yusuf' },
   { name: 'referral-letter-layla-ahmed.pdf', type: 'Referral letter', status: 'processed', date: '24 Sep 2026', size: '88 KB', patient: 'Layla Ahmed' },
   { name: 'discharge-summary-layla-ahmed.pdf', type: 'Discharge summary', status: 'processed', date: '23 Sep 2026', size: '560 KB', patient: 'Layla Ahmed' },
-  { name: 'insurance-claim-hassan-raza.pdf', type: 'Insurance claim', status: 'processing', date: '20 Sep 2026', size: '2.3 MB', patient: 'Hassan Raza' },
+  { name: 'echocardiogram-report-hassan.pdf', type: 'Imaging report', status: 'processed', date: '26 Sep 2026', size: '1.8 MB', patient: 'Hassan Raza' },
   { name: 'icu-progress-note-27sep.pdf', type: 'Clinical note', status: 'needs-review', date: '27 Sep 2026', size: '980 KB', patient: 'Omar Siddiqui' },
+  { name: 'ct-chest-abdomen-omar.pdf', type: 'Imaging report', status: 'processed', date: '25 Sep 2026', size: '3.4 MB', patient: 'Omar Siddiqui' },
+  { name: 'medication-reconciliation-amina.pdf', type: 'Clinical note', status: 'needs-review', date: '25 Sep 2026', size: '195 KB', patient: 'Amina Yusuf' },
+  { name: 'pathology-biopsy-layla.pdf', type: 'Lab report', status: 'processed', date: '22 Sep 2026', size: '420 KB', patient: 'Layla Ahmed' },
+  { name: 'insurance-claim-hassan-raza.pdf', type: 'Insurance claim', status: 'processing', date: '20 Sep 2026', size: '2.3 MB', patient: 'Hassan Raza' },
 ]
 
 export const PIPELINE = ['Upload', 'Extract text', 'OCR', 'Clean', 'Classify', 'Extract fields', 'PHI scan', 'Validate', 'Embed', 'Index']
 
 export const BY_TYPE = [
-  ['Lab reports', 62],
-  ['Clinical notes', 45],
-  ['Referrals', 21],
-  ['Discharge summaries', 14],
+  ['Lab reports', 68],
+  ['Clinical notes', 52],
+  ['Imaging & Diagnostics', 34],
+  ['Referrals', 26],
+  ['Discharge summaries', 18],
 ]
 
 export const ACTIVITY = [
   { level: 'ok', text: 'discharge-summary-layla-ahmed.pdf signed by Dr. Faisal S.', meta: '20 min ago · logged to audit trail' },
   { level: 'warn', text: 'icu-progress-note-27sep.pdf flagged for review', meta: '35 min ago · low-confidence assessment field' },
+  { level: 'ok', text: 'echocardiogram-report-hassan.pdf indexed and linked to chart', meta: '48 min ago · EF 55% verified' },
   { level: 'err', text: 'insurance-claim-hassan-raza.pdf missing required field', meta: '1 hour ago · prior-authorization code' },
   { level: 'ok', text: 'lab-report-cbc-25sep.pdf indexed for Amina Yusuf', meta: '2 hours ago · WBC flagged out of range' },
+  { level: 'warn', text: 'Amoxicillin order flagged for penicillin allergy cross-reactivity', meta: '3 hours ago · Pharmacist notified' },
 ]
 
 export const INITIAL_MESSAGES = [

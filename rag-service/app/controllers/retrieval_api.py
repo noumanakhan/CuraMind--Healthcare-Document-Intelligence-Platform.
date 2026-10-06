@@ -26,6 +26,7 @@ async def search_document_chunks(
         user=user,
         patient_id=payload.patient_id,
         top_k=payload.top_k or 8,
+        query_text=payload.query,
     )
 
     chunk_models = [RetrievedChunkOut(**c) for c in chunks]

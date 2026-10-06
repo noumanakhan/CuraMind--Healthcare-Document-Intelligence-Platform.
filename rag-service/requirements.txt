@@ -14,3 +14,29 @@ PyJWT>=2.8.0
 python-multipart>=0.0.9
 pytest>=8.0.0
 anyio>=4.0.0
+
+# ==============================================================
+# LangChain — scoped integration for RAG/LLM pipeline ONLY
+# The following components are intentionally selected:
+#   - langchain-core: base abstractions (BaseRetriever, BaseChatModel,
+#                     PromptTemplate, LCEL, OutputParser)
+#   - langchain-community: supported PDF, DOCX, and text document loaders
+#   - langchain-text-splitters: RecursiveCharacterTextSplitter
+#   - langchain-google-genai: ChatGoogleGenerativeAI + GoogleGenerativeAIEmbeddings
+#   - langchain-openai: ChatOpenAI + OpenAIEmbeddings (also used for any
+#                       OpenAI-compatible / APInex endpoint via base_url override)
+#   - langchain-anthropic: ChatAnthropic
+#
+# NOT included and intentionally excluded:
+#   - langchain (monolith full package) — only specific providers are used
+#   - Any LangChain vector store (chroma, pinecone, pgvector wrappers, etc.)
+#   - LangChain agents / tools / memory — CuraMind uses PostgreSQL for state
+# ==============================================================
+langchain-core>=0.3.0,<0.4.0
+langchain-community>=0.3.0,<0.4.0
+langchain-text-splitters>=0.3.0,<0.4.0
+docx2txt>=0.8
+pypdfium2>=4.30.0
+langchain-google-genai>=2.0.0,<3.0.0
+langchain-openai>=0.2.0,<0.3.0
+langchain-anthropic>=0.2.0,<0.3.0

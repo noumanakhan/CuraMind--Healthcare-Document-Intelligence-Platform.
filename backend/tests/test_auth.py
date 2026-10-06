@@ -139,9 +139,9 @@ def test_hardcoded_admin_login(client):
     ensure_hardcoded_admin(db)
     db.close()
 
-    admin_login = client.post("/api/v1/auth/login", json={"email": "nomi@gmail.com", "password": "allahmuhammad"})
+    admin_login = client.post("/api/v1/auth/login", json={"email": "admin@gmail.com", "password": "allahmuhammad"})
     assert admin_login.status_code == 200
     user_data = admin_login.json()["user"]
-    assert user_data["email"] == "nomi@gmail.com"
+    assert user_data["email"] == "admin@gmail.com"
     assert user_data["role"] == "admin"
 

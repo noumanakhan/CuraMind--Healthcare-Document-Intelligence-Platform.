@@ -136,6 +136,7 @@ export function AuthProvider({ children }) {
   const value = useMemo(
     () => ({
       accessToken,
+      token: accessToken,
       user,
       permissions,
       hasPermission,

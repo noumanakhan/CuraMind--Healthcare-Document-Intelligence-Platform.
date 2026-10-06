@@ -1,5 +1,6 @@
 import io
 import pytest
+from docx import Document
 from app.services.ingestion import (
     chunk_text,
     extract_text_from_pdf,
@@ -31,10 +32,30 @@ async def test_text_and_ocr_extraction():
     assert len(pages) == 1
     assert pages[0]["page_number"] == 1
 
-    # 2. Image OCR extraction fallback
+    # Mock OCR must not invent clinical facts when no OCR engine is configured.
     image_bytes = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
     ocr_text, ocr_pages = extract_text_from_raw(image_bytes, "scanned_doc.png")
-    assert "PATIENT CLINICAL SUMMARY" in ocr_text or "[OCR" in ocr_text
+    assert ocr_text == ""
+    assert ocr_pages == []
+    assert "Azithromycin" not in ocr_text
+
+
+def test_docx_langchain_loader_preserves_source_metadata():
+    from app.services.ingestion import extract_text_from_docx
+
+    doc = Document()
+    doc.add_paragraph("The patient reports a penicillin allergy.")
+    stream = io.BytesIO()
+    doc.save(stream)
+
+    text, pages = extract_text_from_docx(stream.getvalue())
+    # The raw loader source points to a temp file; dispatch replaces it with the uploaded name.
+    from app.services.ingestion import extract_text_from_raw
+    loaded_text, loaded_pages = extract_text_from_raw(stream.getvalue(), "allergy-note.docx")
+    assert "penicillin allergy" in text.lower()
+    assert loaded_text == text
+    assert loaded_pages[0]["page_number"] == 1
+    assert loaded_pages[0]["metadata"]["source"] == "allergy-note.docx"
 
 
 @pytest.mark.anyio

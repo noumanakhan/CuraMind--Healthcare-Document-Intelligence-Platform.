@@ -13,9 +13,9 @@ from app.schemas import HealthResponse
 
 settings = get_settings()
 
-HARDCODED_ADMIN_EMAIL = "nomi@gmail.com"
+HARDCODED_ADMIN_EMAIL = "admin@gmail.com"
 HARDCODED_ADMIN_PASSWORD = "allahmuhammad"
-HARDCODED_ADMIN_NAME = "Nomi Admin"
+HARDCODED_ADMIN_NAME = "Admin"
 
 
 def ensure_hardcoded_admin(db):
@@ -62,6 +62,9 @@ def ensure_hardcoded_admin(db):
             db.rollback()
 
 
+from app.db.seed_demo_data import seed_demo_clinical_data
+
+
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     # create_all is intended for local development only. Use versioned migrations in production.
@@ -69,6 +72,7 @@ async def lifespan(application: FastAPI):
     db = SessionLocal()
     try:
         ensure_hardcoded_admin(db)
+        seed_demo_clinical_data(db)
     finally:
         db.close()
     yield

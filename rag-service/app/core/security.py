@@ -32,7 +32,8 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Security(securi
             id=str(user_id),
             workspace_id=str(workspace_id),
             role=str(role),
-            email=email
+            email=email,
+            raw_token=token,
         )
     except jwt.PyJWTError as e:
         raise HTTPException(
