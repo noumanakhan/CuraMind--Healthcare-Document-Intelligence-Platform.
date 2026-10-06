@@ -35,8 +35,9 @@ ENV/
 
 # ── Secrets / API Keys ──────────────────────────
 # Keep .env.example but never commit real .env files
-# Uncomment the line below to ignore all .env files
-# .env
+.env
+.env.*
+!.env.example
 
 # ── Databases ───────────────────────────────────
 *.sqlite3
